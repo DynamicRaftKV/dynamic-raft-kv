@@ -1,0 +1,65 @@
+name: raftkv
+services:
+  node1:
+    build: .
+    environment:
+      RAFTKV_NODE_ID: node1
+      RAFTKV_HTTP_ADDR: ":8001"
+      RAFTKV_GRPC_ADDR: ":9001"
+      RAFTKV_DATA_DIR: /data
+      RAFTKV_PEERS: "node1=node1:9001,node2=node2:9002,node3=node3:9003"
+    ports: ["8001:8001", "9001:9001"]
+    volumes: ["node1-data:/data"]
+    stop_grace_period: 10s
+  node2:
+    build: .
+    environment:
+      RAFTKV_NODE_ID: node2
+      RAFTKV_HTTP_ADDR: ":8002"
+      RAFTKV_GRPC_ADDR: ":9002"
+      RAFTKV_DATA_DIR: /data
+      RAFTKV_PEERS: "node1=node1:9001,node2=node2:9002,node3=node3:9003"
+    ports: ["8002:8002", "9002:9002"]
+    volumes: ["node2-data:/data"]
+    stop_grace_period: 10s
+  node3:
+    build: .
+    environment:
+      RAFTKV_NODE_ID: node3
+      RAFTKV_HTTP_ADDR: ":8003"
+      RAFTKV_GRPC_ADDR: ":9003"
+      RAFTKV_DATA_DIR: /data
+      RAFTKV_PEERS: "node1=node1:9001,node2=node2:9002,node3=node3:9003"
+    ports: ["8003:8003", "9003:9003"]
+    volumes: ["node3-data:/data"]
+    stop_grace_period: 10s
+  node4:
+    build: .
+    profiles: [node4]
+    environment:
+      RAFTKV_NODE_ID: node4
+      RAFTKV_HTTP_ADDR: ":8004"
+      RAFTKV_GRPC_ADDR: ":9004"
+      RAFTKV_DATA_DIR: /data
+      RAFTKV_PEERS: "node1=node1:9001,node2=node2:9002,node3=node3:9003"
+    ports: ["8004:8004", "9004:9004"]
+    volumes: ["node4-data:/data"]
+    stop_grace_period: 10s
+  node5:
+    build: .
+    profiles: [node5]
+    environment:
+      RAFTKV_NODE_ID: node5
+      RAFTKV_HTTP_ADDR: ":8005"
+      RAFTKV_GRPC_ADDR: ":9005"
+      RAFTKV_DATA_DIR: /data
+      RAFTKV_PEERS: "node1=node1:9001,node2=node2:9002,node3=node3:9003"
+    ports: ["8005:8005", "9005:9005"]
+    volumes: ["node5-data:/data"]
+    stop_grace_period: 10s
+volumes:
+  node1-data:
+  node2-data:
+  node3-data:
+  node4-data:
+  node5-data:

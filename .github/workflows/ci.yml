@@ -1,0 +1,45 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.1'
+          cache: true
+      - run: make build vet test race
+      - name: Check formatting
+        run: test -z "$(gofmt -l cmd internal)"
+      - name: Install pinned generators
+        run: |
+          curl -fsSL https://github.com/protocolbuffers/protobuf/releases/download/v33.0/protoc-33.0-linux-x86_64.zip -o "$RUNNER_TEMP/protoc.zip"
+          unzip -q "$RUNNER_TEMP/protoc.zip" -d "$RUNNER_TEMP/protoc"
+          echo "$RUNNER_TEMP/protoc/bin" >> "$GITHUB_PATH"
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.10
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
+      - run: make check-generated
+      - name: Compose smoke test
+        run: |
+          docker compose --profile node4 --profile node5 config --quiet
+          docker compose --profile node4 --profile node5 up -d --build
+          for port in 8001 8002 8003 8004 8005; do
+            ready=false
+            for attempt in $(seq 1 30); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:$port/cluster/status" || true)
+              if [ "$code" = 501 ]; then ready=true; break; fi
+              sleep 1
+            done
+            test "$ready" = true
+          done
+      - name: Compose logs and shutdown
+        if: always()
+        run: |
+          docker compose --profile node4 --profile node5 logs
+          docker compose --profile node4 --profile node5 down

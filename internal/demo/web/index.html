@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RaftKV · Prototype workspace</title>
+  <meta name="description" content="Explore the standalone Go key-value engine, snapshots, and implementation progress of RaftKV.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101824'/%3E%3Cpath d='M8 8h7v7H8zm9 0h7v7h-7zM8 17h7v7H8zm9 0h7v7h-7z' fill='%2359d8a0'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css"><script src="app.js" defer></script>
+</head>
+<body>
+<svg class="icon-defs" aria-hidden="true"><defs>
+ <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+ <symbol id="i-terminal" viewBox="0 0 24 24"><path d="m5 7 5 5-5 5m8 0h6"/></symbol>
+ <symbol id="i-snapshot" viewBox="0 0 24 24"><path d="M7 3h10v4H7zM4 7h16v14H4zM9 12h6"/></symbol>
+ <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+ <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 10 5-10 5L2 8zm-10 9 10 5 10-5M2 17l10 5 10-5"/></symbol>
+ <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h16m-6-6 6 6-6 6"/></symbol>
+ <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 4 16 4 16 0V5M4 12c0 4 16 4 16 0"/></symbol>
+</defs></svg>
+<div class="shell">
+ <aside class="sidebar">
+  <a class="brand" href="#workspace"><span class="brand-icon"><svg><use href="#i-grid"/></svg></span>RaftKV<span class="brand-period">.</span></a>
+  <div class="project-label">DEVELOPMENT CONSOLE</div>
+  <nav aria-label="Main navigation">
+   <button class="nav-item active" data-view="workspace" aria-current="page"><svg><use href="#i-terminal"/></svg>KV workspace<span class="nav-shortcut">01</span></button>
+   <button class="nav-item" data-view="snapshots"><svg><use href="#i-snapshot"/></svg>Snapshots<span class="nav-shortcut">02</span></button>
+   <button class="nav-item" data-view="implementation"><svg><use href="#i-check"/></svg>Implementation<span class="nav-shortcut">03</span></button>
+   <button class="nav-item" data-view="architecture"><svg><use href="#i-layers"/></svg>Architecture<span class="nav-shortcut">04</span></button>
+  </nav>
+  <div class="sidebar-note"><div class="tiny-label">CURRENT MILESTONE</div><strong>Standalone engine</strong><div class="milestone-track"><span></span><span></span><span class="future"></span><span class="future"></span></div><p>Stage 2 implemented.<br>Consensus comes next.</p></div>
+  <div class="sidebar-bottom"><span class="go-badge">Go</span><div><strong>Built from scratch</strong><span>Prototype · In-memory</span></div></div>
+ </aside>
+ <div class="app">
+  <header class="topbar"><div class="breadcrumb">RaftKV <span>/</span> Prototype <span>/</span> <strong id="breadcrumb">KV workspace</strong></div><span class="connection" id="connection">Connecting to engine</span></header>
+  <main>
+   <section class="page-heading"><div class="eyebrow">STAGE 01 + 02 / PROTOTYPE</div><div class="heading-line"><h1 id="page-title">KV workspace</h1><span class="pill">Standalone mode</span></div><p id="page-description">Write a key. Read it back. See your Go engine at work.</p></section>
+   <div class="notice"><span class="notice-symbol">i</span><span><strong>One engine. No consensus yet.</strong> Data lives in memory and resets when the server stops. Raft replication and durable storage are not active.</span></div>
+
+   <section class="view" id="view-workspace">
+    <div class="stats">
+     <div class="stat"><div><span>Keys in memory</span><strong id="key-count">—</strong></div><span class="stat-icon"><svg><use href="#i-db"/></svg></span><small>Current engine state</small></div>
+     <div class="stat"><div><span>Commands applied</span><strong id="command-count">—</strong></div><span class="stat-icon"><svg><use href="#i-terminal"/></svg></span><small>Successful PUT, GET &amp; DELETE calls</small></div>
+     <div class="stat"><div><span>Snapshot format</span><strong>v1<span class="stat-unit">JSON</span></strong></div><span class="stat-icon"><svg><use href="#i-snapshot"/></svg></span><small>Complete state · Atomic restore</small></div>
+    </div>
+    <div class="workspace-grid">
+     <section class="card command-card">
+      <div class="card-heading"><h2>Command playground</h2><span class="mono subdued">Apply(command)</span></div>
+      <form id="command-form">
+       <div class="operation-tabs" role="group" aria-label="Operation"><button type="button" class="op active" data-op="PUT" aria-pressed="true">PUT <span>Write</span></button><button type="button" class="op" data-op="GET" aria-pressed="false">GET <span>Read</span></button><button type="button" class="op" data-op="DELETE" aria-pressed="false">DELETE <span>Remove</span></button></div>
+       <label for="key">Key <span>required</span></label><input id="key" name="key" placeholder="e.g. project:name" autocomplete="off" required>
+       <div id="value-field"><label for="value">Value <span>string</span></label><textarea id="value" name="value" rows="3" placeholder="e.g. RaftKV"></textarea></div>
+       <p class="field-hint" id="operation-hint">Creates a key or overwrites its value. Empty values are supported.</p>
+       <button class="button primary run-button" id="run" type="submit"><svg><use href="#i-terminal"/></svg><span>Run command</span><span class="keycap">↵</span></button>
+      </form>
+      <div class="response"><div class="response-heading"><span><span class="terminal-dot"></span> ENGINE RESPONSE</span><span id="response-status">Ready</span></div><pre id="response" aria-live="polite">// Run a command to inspect its result.</pre></div>
+     </section>
+     <section class="card data-card">
+      <div class="card-heading"><div class="heading-with-count"><h2>Live keyspace</h2><span class="count-badge" id="table-count">0</span></div><button class="text-button" id="refresh" type="button">Refresh <span>↻</span></button></div>
+      <div class="table-wrap"><table><thead><tr><th>KEY</th><th>VALUE</th><th><span class="sr-only">Action</span></th></tr></thead><tbody id="key-table"></tbody></table></div>
+      <div class="empty-state" id="empty-state"><span class="empty-icon"><svg><use href="#i-db"/></svg></span><h3>A clean slate.</h3><p>Your engine is ready. Write your first key<br>or load a few presentation examples.</p><button id="seed" class="button secondary" type="button">Load example data <span>↗</span></button></div>
+      <div class="table-footer"><span class="small-dot"></span> Read directly from the Go engine’s snapshot</div>
+     </section>
+    </div>
+    <section class="card activity-card"><div class="card-heading"><h2>Session activity</h2><span class="subdued">This browser session</span></div><div id="activity" aria-live="polite"><div class="activity-empty">Your command history will appear here. Nothing runs until you do.</div></div></section>
+   </section>
+
+   <section class="view" id="view-snapshots" hidden>
+    <div class="snapshot-grid"><section class="card snapshot-actions"><div class="card-heading"><h2>Capture &amp; restore</h2><span class="pill">Format v1</span></div><div class="card-body"><span class="step-label">01 / CAPTURE</span><h3>Keep a point-in-time copy.</h3><p>Capture every key and value from the running engine. The saved copy stays in this browser tab.</p><button id="capture" class="button primary" type="button"><svg><use href="#i-snapshot"/></svg>Capture snapshot</button><hr><span class="step-label">02 / CHANGE YOUR DATA</span><p>Return to the workspace and change a value or delete a key.</p><button class="text-button" data-view="workspace" type="button">Open workspace →</button><hr><span class="step-label">03 / RESTORE</span><h3>Bring the captured state back.</h3><p>Restore replaces all current keys. It does not merge with the current state.</p><button id="restore" class="button secondary" type="button" disabled>Restore captured snapshot</button><p class="subdued" id="snapshot-meta">Capture a snapshot to enable restore.</p></div></section><section class="card snapshot-preview"><div class="card-heading"><h2>Snapshot payload</h2><button id="download" class="text-button" type="button" disabled>Download JSON ↓</button></div><pre id="snapshot-json">// No snapshot captured yet.</pre><div class="table-footer">KV payload only. Raft index and term are not part of this format.</div></section></div>
+   </section>
+
+   <section class="view" id="view-implementation" hidden>
+    <div class="implementation-intro"><span class="large-check"><svg><use href="#i-check"/></svg></span><div><h2>From foundation to a working engine.</h2><p>Implemented locally and verified with build, vet, unit tests, and race checks.</p></div></div>
+    <div class="stage-grid"><section class="card"><div class="stage-head"><span class="stage-number">01</span><div><span class="eyebrow">FOUNDATION</span><h2>System scaffolding</h2></div><span class="status-tag draft">Review pending</span></div><ul class="feature-list"><li><b>Go module &amp; package boundaries</b><span>Seven internal packages; separate server and CLI binaries.</span></li><li><b>Core interface drafts</b><span>StateMachine, Storage, Transport and RaftNode.</span></li><li><b>Protobuf &amp; gRPC contracts</b><span>Four generated RPCs, with Unimplemented responses.</span></li><li><b>HTTP API &amp; raftctl skeletons</b><span>KV and cluster routes return explicit 501 responses.</span></li><li><b>Compose &amp; CI configuration</b><span>3–5 node process setup; build, vet, test and race workflow.</span></li><li><b>Design documentation</b><span>ADRs, contract review notes and scope boundaries.</span></li></ul><div class="stage-note">Still pending: SDD reconciliation, interface freeze, Docker verification and hosted CI setup.</div></section>
+    <section class="card"><div class="stage-head"><span class="stage-number green">02</span><div><span class="eyebrow">STANDALONE ENGINE</span><h2>Key-value core</h2></div><span class="status-tag">Implemented</span></div><ul class="feature-list"><li><b>Concurrency-safe CRUD</b><span>Map-backed store with an RWMutex. Empty values supported.</span></li><li><b>Deterministic Apply</b><span>JSON PUT, GET and DELETE commands with defined results.</span></li><li><b>Versioned snapshots</b><span>Complete KV state in a repeatable version-1 JSON payload.</span></li><li><b>Atomic replacement restore</b><span>Validates first; invalid snapshots leave state unchanged.</span></li><li><b>Model &amp; replay tests</b><span>100 seeds × 200 commands, compared with a reference map.</span></li><li><b>Isolation &amp; interface harness</b><span>No Raft/network imports; tested through StateMachine.</span></li></ul><div class="stage-note green-note">Local checks passed. This console demonstrates the actual standalone engine.</div></section></div>
+    <div class="next-stage"><span class="mono">NEXT / 03</span><div><h3>Raft core</h3><p>Leader election, replication and consensus are not implemented.</p></div><span class="status-tag neutral">Not started</span></div>
+   </section>
+
+   <section class="view" id="view-architecture" hidden>
+    <section class="card architecture-card"><div class="card-heading"><h2>The path running in this prototype</h2><span class="status-tag">Active demo</span></div><div class="flow"><div class="flow-node"><span class="flow-label">PRESENTATION</span><svg><use href="#i-grid"/></svg><h3>Browser console</h3><p>Commands &amp; state inspection</p></div><span class="flow-arrow">→</span><div class="flow-node"><span class="flow-label">DEMO ADAPTER</span><svg><use href="#i-terminal"/></svg><h3>Go HTTP bridge</h3><p>Opt-in /demo/ routes</p></div><span class="flow-arrow">→</span><div class="flow-node live-node"><span class="flow-label">STAGE 2</span><svg><use href="#i-db"/></svg><h3>StateMachine</h3><p>Apply · Snapshot · Restore</p></div></div><div class="architecture-note">The console calls the real Go engine through a separate demo adapter. The Stage 1 client API stays stubbed, and this path does not provide replication or durability.</div></section>
+    <section class="card architecture-card planned"><div class="card-heading"><h2>The planned distributed path</h2><span class="status-tag neutral">Future stages</span></div><div class="planned-flow"><span>Client API</span><b>→</b><span>Raft leader</span><b>→</b><span>Replicated log</span><b>→</b><span>Commit</span><b>→</b><span>StateMachine</span></div><div class="architecture-note">Only the final state-machine component is implemented. No leader, quorum, replication latency or durability metrics are being simulated.</div></section>
+   </section>
+   <footer class="page-footer"><span>RaftKV <span class="footer-dot">/</span> A Go key-value store, built from scratch.</span><span>Stage 1 + 2 demonstration</span></footer>
+  </main>
+ </div>
+</div>
+<div id="toast" role="status" class="toast" hidden></div>
+<dialog id="restore-dialog"><form method="dialog"><span class="step-label">REPLACE CURRENT STATE</span><h2>Restore this snapshot?</h2><p>All current keys will be replaced by the captured snapshot. Commands applied after capture will be undone in this demo.</p><div class="dialog-actions"><button class="button secondary" value="cancel">Cancel</button><button class="button primary" value="restore">Restore snapshot</button></div></form></dialog>
+</body></html>
