@@ -1,0 +1,15 @@
+# Replace @Anubhav2506..@Yuvraj-Kumar05 with GitHub usernames. Ownership = primary reviewer, not a silo (SDD section 40).
+/internal/raft/           @@Anubhav2506 @@Eternal-Spirit
+/internal/membership/     @@Eternal-Spirit @@Anubhav2506
+/internal/storage/        @@Eternal-Spirit @@Anubhav2506
+/internal/state/          @@Eternal-Spirit @@Anubhav2506
+/internal/transport/      @@pratikbatish @@Anubhav2506
+/internal/api/            @@pratikbatish @@Anubhav2506
+/cmd/raftctl/             @@pratikbatish
+/internal/observability/  @@pratikbatish @@Yuvraj-Kumar05
+/internal/fault/          @@Yuvraj-Kumar05 @@Anubhav2506
+/tests/                   @@Yuvraj-Kumar05
+/deploy/                  @@Yuvraj-Kumar05
+/scripts/                 @@Yuvraj-Kumar05
+/.github/                 @@Yuvraj-Kumar05
+/docs/                    @@Anubhav2506 @@Eternal-Spirit @@pratikbatish @@Yuvraj-Kumar05
