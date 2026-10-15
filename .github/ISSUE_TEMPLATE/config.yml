@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Project board and roadmap
+    url: https://github.com/orgs/DynamicRaftKV/projects/3
+    about: See current sprint, roadmap and risks before opening a new issue

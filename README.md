@@ -381,6 +381,17 @@ The project is structured as 9 stages, tracked on the [GitHub Project Board](htt
 
 ---
 
+## Project board & roadmap
+
+This project is actively managed using **GitHub Projects v2**:
+
+- 📋 **Project Tracker:** [RaftKV — Dynamic Raft Key-Value Store](https://github.com/orgs/DynamicRaftKV/projects/3)
+- 🗺️ **Full Roadmap:** [docs/project/ROADMAP.md](docs/project/ROADMAP.md)
+- 🎯 **Milestones & Deliverables:** [GitHub Milestones](https://github.com/DynamicRaftKV/dynamic-raft-kv/milestones)
+
+> Stage = Milestone · Phase = Epic issue · Task = Issue. Each task carries owner, estimate, SDD reference, and acceptance criteria.
+
+---
 ## 👥 Team
 
 | Person | GitHub | Architectural Domain |

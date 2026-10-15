@@ -1,0 +1,30 @@
+name: Bug report
+description: Something behaves incorrectly (include the failing scenario)
+title: "[BUG] "
+labels: ["type: bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Expected vs actual behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: Commands, cluster size, injected faults, seed if randomized
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Structured node logs around the failure (role, term, index)
+      render: json
+  - type: dropdown
+    id: invariant
+    attributes:
+      label: Raft safety invariant possibly violated
+      options: ["None / not sure", "S1 Election safety", "S2 Leader append-only", "S3 Log matching", "S4 Leader completeness", "S5 State machine safety", "S6 Membership-change safety", "S7 No commit without quorum"]

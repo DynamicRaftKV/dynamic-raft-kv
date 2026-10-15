@@ -1,0 +1,48 @@
+name: Task
+description: A unit of planned work traced to the implementation plan / SDD
+title: "[S<stage>.<phase>-<nn>] "
+labels: ["type: task"]
+body:
+  - type: input
+    id: task_id
+    attributes:
+      label: Task ID
+      description: Stage.phase-number, e.g. S3.2-01
+    validations:
+      required: true
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: What outcome does this task deliver?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Checklist that proves it is done
+      placeholder: "- [ ] ..."
+    validations:
+      required: true
+  - type: input
+    id: sdd
+    attributes:
+      label: SDD reference
+      placeholder: "section 12.1, invariant S4"
+  - type: input
+    id: deps
+    attributes:
+      label: Depends on
+      placeholder: "S3.2-01, S1.2-06"
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options: [MUST, SHOULD, MAY]
+    validations:
+      required: true
+  - type: input
+    id: estimate
+    attributes:
+      label: Estimate (hours)
