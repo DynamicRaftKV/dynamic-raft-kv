@@ -1,8 +1,7 @@
 <div align="center">
 
 <h1>
-  <img src="https://img.shields.io/badge/Go-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go"/>
-  &nbsp; Dynamic Raft KV
+Dynamic Raft KV
 </h1>
 
 <h3>A fault-tolerant distributed key-value store — Raft consensus, built from scratch in Go</h3>
