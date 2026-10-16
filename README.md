@@ -391,16 +391,6 @@ This project is actively managed using **GitHub Projects v2**:
 > Stage = Milestone · Phase = Epic issue · Task = Issue. Each task carries owner, estimate, SDD reference, and acceptance criteria.
 
 ---
-## 👥 Team
-
-| Person | GitHub | Architectural Domain |
-|:---|:---|:---|
-| **Anubhav** | [@Anubhav2506](https://github.com/Anubhav2506) | Raft Core — consensus, election, log replication |
-| **Eternal-Spirit** | [@Eternal-Spirit](https://github.com/Eternal-Spirit) | Storage & Membership — WAL, snapshots, dynamic membership |
-| **Pratik** | [@pratikbatish](https://github.com/pratikbatish) | Networking & API — gRPC transport, client SDK, CLI |
-| **Yuvraj** | [@Yuvraj-Kumar05](https://github.com/Yuvraj-Kumar05) | Reliability & DevOps — fault injection, CI/CD, observability |
-
----
 
 ## 📚 Further Reading
 
