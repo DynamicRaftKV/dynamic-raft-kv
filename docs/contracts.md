@@ -1,9 +1,11 @@
 # Stage 1 contract review
 
 Status: system-wide DRAFT. The owner explicitly authorized Stage 2 using the
-existing state interface; see ADR-0003. Stage 3 remains gated. Compile-time
-conformance is not a system-wide freeze. State semantics are implemented and
-documented in stage2-status.md; storage/transport/node remain declarations/stubs.
+existing state interface; see ADR-0003, and Stage 3 core on 27 October 2026;
+see ADR-0004. Compile-time conformance is not a system-wide freeze. State and
+Raft semantics are implemented as documented in stage2-status.md and
+stage3-status.md. Stage 4 gRPC/HTTP/CLI adapters are implemented; see ADR-0005.
+Stage 5.1–5.2 now implements WAL storage and durable process wiring; see ADR-0006.
 
 ## Established architecture
 
@@ -23,12 +25,12 @@ documented in stage2-status.md; storage/transport/node remain declarations/stubs
 | KV encoding | JSON Command/Result, string key/value, PUT/GET/DELETE | Implemented Stage 2 |
 | Results | PUT/DELETE acknowledge; GET found flag + value; absent DELETE succeeds | Implemented Stage 2 |
 | Keys | Nonempty UTF-8 string; empty values allowed | Implemented Stage 2 |
-| Limits | No domain key/value maximum selected | Confirm against SDD/API before freeze |
+| Limits | State engine remains unrestricted; encoded Raft command at most 1 MiB, append batches at most 128 entries and approximately 2 MiB | Stage 4 transport safety; ADR-0005 |
 | Errors | Invalid commands wrap ErrInvalidCommand; invalid restore wraps ErrInvalidSnapshot; neither mutates state | Implemented Stage 2; HTTP mapping remains pending |
-| Proposal | Success after application; cancellation stops waiting, not committed work | Stage 3/4 |
-| RPC types | Plain Go structs in raft, protobuf types in proto/raftkvpb | Mapping in Stage 4 |
+| Proposal | Success after application; cancellation stops waiting, not committed work | Core and HTTP adapter implemented |
+| RPC types | Plain Go structs in raft, protobuf types in proto/raftkvpb | gRPC mapping implemented Stage 4 |
 | Snapshot RPC | Unary chunk messages with offset/done; no resumable transfer implementation | Review transfer identity, retries, limits before freeze |
-| Storage | Synchronous durable success; owner serializes calls; full active log recovered into memory | WAL implementation Stage 5 |
+| Storage | Synchronous durable success; owner serializes calls; full active log recovered into memory | WAL implemented; snapshots/compaction pending |
 | Log append | Contiguous batch can replace an uncommitted suffix, never a committed one | Stage 5 |
 | Snapshot install | Atomically publish metadata, payload and suffix-retention decision | Stage 5 |
 | Compaction | Reclaim covered prefix after durable snapshot; recovery filters covered entries | Stage 5 |
@@ -57,15 +59,15 @@ states, and configuration payload encoding require SDD review.
 2. Confirm module path, Go baseline, license and actual review participants.
 3. Approve command/result representation, missing-key behavior, validation and
    error types. Specify whether binary values are required instead of strings.
-4. Specify GET routing/consistency and whether RaftNode needs a separate read
-   surface. No lease/read-index algorithm or bypass to state is implemented.
+4. Review the Stage 4 decision to send GET through Propose (ADR-0005).
+   No separate read surface, lease/read-index algorithm or bypass to state exists.
 5. Specify membership administration boundary for HTTP join/remove, the admission
    versus promotion completion result, and configuration-change algorithm.
    RaftNode currently contains only the plan's Propose/Status/IsLeader surface.
-6. Specify structured not-leader/unknown-leader errors and externally reachable
-   leader HTTP address mapping. IsLeader cannot authorize a later proposal.
-7. Approve inbound RPC dispatch and ownership of snapshot chunk assembly. The
-   draft RPCHandler is not connected to the unimplemented server.
+6. Review the Stage 4 ErrNotLeader to HTTP 307/503 mapping and externally
+   reachable leader address configuration. IsLeader cannot authorize a proposal.
+7. Review implemented inbound RPC dispatch; specify snapshot chunk assembly.
+   Server accepts RPCHandler; durable startup wiring is implemented in Stage 5.2.
 8. Approve Storage atomicity/recovery guarantees and memory-backed active-log
    assumption; define WAL constants only after the actual format is known.
 9. Resolve snapshot membership metadata and transfer bounds/identity, including

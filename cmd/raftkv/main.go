@@ -14,7 +14,9 @@ import (
 
 	"github.com/DynamicRaftKV/dynamic-raft-kv/internal/api"
 	"github.com/DynamicRaftKV/dynamic-raft-kv/internal/demo"
+	"github.com/DynamicRaftKV/dynamic-raft-kv/internal/raft"
 	"github.com/DynamicRaftKV/dynamic-raft-kv/internal/state"
+	"github.com/DynamicRaftKV/dynamic-raft-kv/internal/storage"
 	"github.com/DynamicRaftKV/dynamic-raft-kv/internal/transport"
 	"github.com/DynamicRaftKV/dynamic-raft-kv/proto/raftkvpb"
 	"google.golang.org/grpc"
@@ -35,7 +37,8 @@ func main() {
 	}
 }
 
-// serve runs only listeners and stub handlers, with bounded shutdown.
+// serve runs either the standalone/scaffold mode or an explicitly configured
+// durable Raft node, with bounded shutdown.
 func serve(ctx context.Context, c config) error {
 	httpListener, err := net.Listen("tcp", c.httpAddr)
 	if err != nil {
@@ -48,6 +51,39 @@ func serve(ctx context.Context, c config) error {
 	}
 	defer grpcListener.Close()
 	handler := api.NewHandler()
+	var node *raft.Node
+	adapter := &transport.Server{}
+	if c.clusterConfig != "" {
+		peers, err := readPeers(c.clusterConfig, c.id)
+		if err != nil {
+			return err
+		}
+		disk, err := storage.OpenWAL(c.dataDir)
+		if err != nil {
+			return err
+		}
+		defer disk.Close()
+		recovered, err := disk.Recover()
+		if err != nil {
+			return err
+		}
+		// Never assign a missing bootstrap identity to an already populated WAL.
+		if _, err := os.Stat(c.dataDir + "/bootstrap.json"); errors.Is(err, os.ErrNotExist) && (recovered.HardState.Term != 0 || len(recovered.Entries) > 0) {
+			return errors.New("nonempty WAL has no bootstrap identity")
+		}
+		if err := bindBootstrap(c.dataDir, c.id, peers); err != nil {
+			return err
+		}
+		client := &transport.Client{}
+		defer client.Close()
+		node, err = raft.NewNode(raft.Config{ID: c.id, Peers: peers, Storage: disk, StateMachine: state.NewStore(), Transport: client})
+		if err != nil {
+			return err
+		}
+		defer node.Stop()
+		adapter.Handler = node
+		handler = api.NewRaftHandler(node)
+	}
 	if c.demo {
 		mux := http.NewServeMux()
 		mux.Handle("/demo/", demo.NewHandler(state.NewStore()))
@@ -57,14 +93,22 @@ func serve(ctx context.Context, c config) error {
 	}
 	httpServer := &http.Server{Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second}
 	grpcServer := grpc.NewServer()
-	raftkvpb.RegisterRaftServiceServer(grpcServer, &transport.Server{})
-	errs := make(chan error, 2)
+	raftkvpb.RegisterRaftServiceServer(grpcServer, adapter)
+	errs := make(chan error, 3)
 	go func() { errs <- httpServer.Serve(httpListener) }()
 	go func() { errs <- grpcServer.Serve(grpcListener) }()
-	log.Printf("Stage 1 skeleton node=%s http=%s grpc=%s; peers/data-dir reserved; no consensus or persistence", c.id, httpListener.Addr(), grpcListener.Addr())
+	if node != nil {
+		go func() { errs <- node.Run(ctx) }()
+		log.Printf("Durable Raft node=%s http=%s grpc=%s data=%s", c.id, httpListener.Addr(), grpcListener.Addr(), c.dataDir)
+	} else {
+		log.Printf("Scaffold node=%s http=%s grpc=%s; use --cluster-config for durable Raft", c.id, httpListener.Addr(), grpcListener.Addr())
+	}
 	select {
 	case <-ctx.Done():
 	case err = <-errs:
+	}
+	if node != nil {
+		node.Stop()
 	}
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -78,7 +122,7 @@ func serve(ctx context.Context, c config) error {
 	case <-shutdownCtx.Done():
 		grpcServer.Stop()
 	}
-	if errors.Is(err, http.ErrServerClosed) || errors.Is(err, grpc.ErrServerStopped) {
+	if errors.Is(err, http.ErrServerClosed) || errors.Is(err, grpc.ErrServerStopped) || (ctx.Err() != nil && (errors.Is(err, context.Canceled) || errors.Is(err, raft.ErrStopped))) {
 		return nil
 	}
 	return err

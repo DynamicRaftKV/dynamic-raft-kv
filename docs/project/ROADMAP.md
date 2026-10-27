@@ -1,5 +1,26 @@
 # RaftKV — Roadmap
 
+## Implementation update — 27 October 2026
+
+Local work now includes Stage 3.1–3.4, Stage 4's network/API/CLI code, and
+Stage 5.1–5.2 WAL/durable process integration. Local tests include separate
+process leader failure and full-cluster restart. Reviews and publication are
+separate; this update does not mark the whole project complete.
+
+Remaining critical path: **5.3 snapshots/compaction → remaining 5.4 recovery →
+6.1–6.4 dynamic membership → 7 reliability/observability → 4.4 Compose acceptance
+and 8 cluster UI/evaluation**. Stage 9 is optional post-MVP work.
+
+See [current completion checklist](../completion-plan.md),
+[etcd comparison and review additions](../raft-readiness-review.md), and
+[durable node run instructions](../stage5-status.md).
+
+Add explicit acceptance checks for atomic snapshot publication, recoverable
+membership transitions, learner promotion/removal, operation histories under
+faults, resource limits under quorum loss, and host/container address routing.
+These clarify existing phases; the review's optional extensions are not silently
+added to the MVP. The schedule below remains the original planning baseline.
+
 > Planned schedule. **Live status lives on the GitHub Project board** (see README). This file is the static mirror of the plan so it can be read offline and cited in the report.
 
 Sprint 1 starts **Mon 12 Oct 2026**; assumed final evaluation **Fri 18 Dec 2026**. Ten weekly sprints, aligned to the ratified SDD (sections 41-47).

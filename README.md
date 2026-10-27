@@ -31,6 +31,38 @@ Dynamic Raft KV
 
 </div>
 
+## Current implementation status — 27 October 2026
+
+The standalone KV engine (Stage 2) and fixed-membership Raft core (Stage 3,
+phases 3.1–3.4) are implemented and tested. Stage 3 runs through an in-process
+test cluster; it is **not connected to the HTTP server or demo yet**. The demo
+remains memory-only and single-node. Stage 4 gRPC, HTTP and CLI adapters now pass
+real TCP tests with 1, 3, 5 and 7 nodes. Stage 5.1–5.2 now adds a synced WAL and
+durable process startup using `--cluster-config`. Snapshot transfer/compaction,
+dynamic membership and real-cluster Docker/UI integration remain pending. Foundation/interface
+review and the required Raft reviews remain open.
+
+See [Stage 3 plan](docs/stage3-plan.md) and [verification and limitations](docs/stage3-status.md).
+See also [Stage 4 progress and next steps](docs/stage4-status.md).
+The [completion plan](docs/completion-plan.md) lists every remaining stage,
+including Docker Compose. [Stage 5 instructions](docs/stage5-status.md) show how
+to launch three durable local processes now without Docker.
+The architecture, distributed quick-start examples and capability descriptions
+below describe the target system, not a currently deployable distributed service.
+
+To exercise the implemented consensus scenarios:
+
+```sh
+go test -v ./internal/raft
+go test -race ./...
+```
+
+For the existing standalone UI, run `make demo` and open
+[the local demo](http://127.0.0.1:8080/demo/).
+If the binaries are already built, you can restart it directly with
+`./bin/raftkv --demo --http-addr 127.0.0.1:8080 --grpc-addr 127.0.0.1:9090`.
+Keep that process running; a stopped server makes the page unavailable.
+
 ## 🧠 What is this?
 
 **Dynamic Raft KV** is a distributed, strongly-consistent key-value store built **from scratch in Go** — no Raft libraries, no shortcuts. It is a ground-up implementation of the [Raft consensus algorithm](https://raft.github.io/raft.pdf) (Ongaro & Ousterhout, 2014) applied to a practical key-value database.
@@ -41,9 +73,9 @@ Dynamic Raft KV
 
 | Property | Description |
 |:---|:---|
-| **Strong Consistency** | Linearizable reads and writes — all nodes always agree on the same ordered log |
+| **Strong Consistency** | Reads/writes use quorum commitment and ordered application; followers may lag |
 | **Fault Tolerance** | A 3-node cluster tolerates 1 simultaneous failure; a 5-node cluster tolerates 2 |
-| **Automatic Leader Failover** | New leader elected within 150–600ms of detecting a failure |
+| **Automatic Leader Failover** | Randomized elections; no fixed failover-time SLA is claimed |
 | **Crash Recovery** | WAL + persistent state means a restarted node replays its log and rejoins the cluster |
 | **Dynamic Membership** | Nodes can join, leave, or be promoted without downtime (Stages 6+) |
 | **Fully Observable** | Prometheus metrics, structured logging, and health endpoints (Stage 7) |
@@ -106,7 +138,7 @@ flowchart TD
 | **HTTP API** | Client-facing REST interface. Forwards writes to Raft; redirects clients to leader if needed | Go `net/http` |
 | **RaftNode** | Core consensus engine. Manages elections, log replication, heartbeats, and commit tracking | Pure Go |
 | **StateMachine / KVStore** | The actual database — a `map[string]string` that receives committed log entries | Go map |
-| **Storage / WAL** | Persists `currentTerm`, `votedFor`, and log entries to disk for crash recovery | JSON files on disk |
+| **Storage / WAL** | Persists `currentTerm`, `votedFor`, and log entries to disk for crash recovery | CRC-framed JSON WAL records |
 | **GRPCTransport** | Node-to-node communication for `RequestVote` and `AppendEntries` RPCs | gRPC + Protobuf |
 
 ---
@@ -194,7 +226,7 @@ sequenceDiagram
 
 ### The Replicated Log
 
-Every committed write is durably stored in an ordered, append-only log replicated across all nodes:
+Committed entries are replicated to a voting quorum before success; lagging followers catch up later:
 
 ```mermaid
 flowchart LR
@@ -222,7 +254,7 @@ flowchart LR
 ### Prerequisites
 
 - Go 1.27+
-- Docker (for cluster mode)
+- Docker (only for the later container deployment; local processes work without it)
 - `protoc` 33.0 (only if regenerating gRPC contracts)
 
 ### Build & Test
@@ -235,8 +267,9 @@ cd dynamic-raft-kv
 # Build binaries, vet, run tests, check race conditions
 make build vet test race
 
-# Start a single node
-./bin/raftkv --node-id node1 --http-addr :8001 --grpc-addr :9001
+# Start node 1 of the checked-in durable three-node configuration
+./bin/raftkv --node-id node1 --cluster-config configs/local-three-node.json --data-dir data/node1 --http-addr 127.0.0.1:8101 --grpc-addr 127.0.0.1:9101
+# Start node2 and node3 in separate terminals; see docs/stage5-status.md
 ```
 
 ### Configuration
@@ -244,7 +277,8 @@ make build vet test race
 | Flag | Environment Variable | Default | Description |
 |:---|:---|:---:|:---|
 | `--node-id` | `RAFTKV_NODE_ID` | `node1` | Unique name for this node |
-| `--peers` | `RAFTKV_PEERS` | `""` | Comma-separated peer list: `id=host:port,...` |
+| `--peers` | `RAFTKV_PEERS` | `""` | Legacy reserved scaffold flag; not durable membership configuration |
+| `--cluster-config` | `RAFTKV_CLUSTER_CONFIG` | `""` | JSON peer configuration; enables durable Raft mode |
 | `--data-dir` | `RAFTKV_DATA_DIR` | `./data` | Directory for WAL and snapshot files |
 | `--http-addr` | `RAFTKV_HTTP_ADDR` | `:8001` | Client-facing HTTP address |
 | `--grpc-addr` | `RAFTKV_GRPC_ADDR` | `:9001` | Inter-node gRPC address |
@@ -272,64 +306,36 @@ make demo
 
 ## 🐳 Docker Cluster
 
-Run a full 3-node Raft cluster locally using Docker Compose:
+Compose is currently **scaffold-only**: it does not pass `--cluster-config` and
+its HTTP routes return 501. Starting profile node4/node5 does not join a Raft
+cluster. Migration to durable volumes/configuration and real-operation tests is
+Stage 4.4; dynamic membership is Stage 6. Use the [local durable process
+instructions](docs/stage5-status.md) today.
 
-```sh
-# Start a 3-node cluster
-docker compose up -d --build
-
-# Add a 4th or 5th node
-docker compose --profile node4 --profile node5 up -d --build
-
-# Add a node to a live cluster
-sh scripts/add-node.sh 4
-
-# Tear down (volumes preserved)
-docker compose down
-```
-
-### Port Map
-
-| Node | HTTP Port | gRPC Port | Data Volume |
-|:---:|:---:|:---:|:---|
-| `raftkv-node1` | `:8081` | `:9001` | `/data/node1/` |
-| `raftkv-node2` | `:8082` | `:9002` | `/data/node2/` |
-| `raftkv-node3` | `:8083` | `:9003` | `/data/node3/` |
+The scaffold maps HTTP ports 8001–8005 and gRPC ports 9001–9005, with a separate
+named volume per service. Do not present it as a completed distributed demo.
 
 ---
 
 ## 📡 API Reference
 
-All endpoints use JSON. Write requests must be sent to the **leader**; followers return `HTTP 307` with the leader's address.
-
-### Key-Value Operations
-
-```sh
-# Write a key
-curl -X PUT http://localhost:8081/kv/user:123 \
-  -H "Content-Type: application/json" \
-  -d '{"value": "Aran"}'
-# → 200 {"status":"ok","index":1,"term":1}
-
-# Read a key
-curl http://localhost:8081/kv/user:123
-# → 200 {"key":"user:123","value":"Aran","found":true}
-
-# Delete a key
-curl -X DELETE http://localhost:8081/kv/user:123
-# → 200 {"status":"ok","index":2,"term":1}
-
-# Key not found
-curl http://localhost:8081/kv/unknown
-# → 404 {"key":"unknown","found":false}
-```
-
-### Cluster Status
+The following endpoints work in `--cluster-config` mode. GET, PUT and DELETE
+all go through Raft. Followers redirect with HTTP 307 when the leader is known.
+Use `raftctl` for bounded automatic leader redirects.
 
 ```sh
-curl http://localhost:8081/status
-# → 200 {"node_id":"node1","state":"Leader","term":3,"commit_index":42,"leader":"node1"}
+./bin/raftctl --endpoint http://127.0.0.1:8101 put user:123 Aran
+# {"op":"PUT"}
+./bin/raftctl --endpoint http://127.0.0.1:8102 get user:123
+# {"op":"GET","found":true,"value":"Aran"}
+./bin/raftctl --endpoint http://127.0.0.1:8101 delete user:123
+# {"op":"DELETE"}
+curl http://127.0.0.1:8101/cluster/status
 ```
+
+Missing GET returns HTTP 404 with `{"op":"GET"}`. A proposal timeout means the
+outcome may be unknown. `/cluster/join` and `/cluster/remove` remain 501.
+See [the HTTP/CLI contract](docs/api.md) for validation, limits and errors.
 
 ---
 
@@ -367,10 +373,10 @@ The project is structured as 9 stages, tracked on the [GitHub Project Board](htt
 | Stage | Theme | Key Deliverables | Status |
 |:---:|:---|:---|:---:|
 | **1** | Foundation & System Design | SDD, Protobuf contracts, core interfaces, ADRs | 🔄 In Progress |
-| **2** | Standalone KV Engine | In-memory KV, WAL, state machine, Snapshot/Restore | ✅ Scaffolded |
-| **3** | Raft Core | Leader election, AppendEntries, heartbeats, safety proofs | 📋 Ready |
-| **4** | Networking & Client | gRPC transport, follower redirect, client SDK, CLI | ⏳ Pending |
-| **5** | Durability & Snapshots | Log compaction, InstallSnapshot RPC, crash recovery | ⏳ Pending |
+| **2** | Standalone KV Engine | In-memory KV, deterministic state machine, KV Snapshot/Restore | Implemented and tested |
+| **3** | Raft Core | Election, replication, commit/application, in-process failure tests | Implemented; team review pending |
+| **4** | Networking & Client | gRPC transport, consensus HTTP, follower redirect, CLI | Integrated; Compose acceptance pending |
+| **5** | Durability & Snapshots | WAL, log compaction, InstallSnapshot RPC, crash recovery | WAL/process integration tested; snapshots/compaction pending |
 | **6** | Dynamic Membership | Joint consensus, learner nodes, single-server changes | ⏳ Pending |
 | **7** | Reliability & Observability | Chaos testing, fault injection, Prometheus dashboards | ⏳ Pending |
 | **8** | Integration & Evaluation | End-to-end tests, benchmarks, runbooks, presentation | ⏳ Pending |

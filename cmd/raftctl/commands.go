@@ -33,9 +33,23 @@ func run(args []string, out io.Writer) error {
 	var payload any
 	args = f.Args()
 	if len(args) == 0 {
-		return errors.New("usage: raftctl [flags] status | join ID GRPC_ADDRESS HTTP_ADDRESS | remove ID")
+		return errors.New("usage: raftctl [flags] status | put KEY VALUE | get KEY | delete KEY | join ID GRPC_ADDRESS HTTP_ADDRESS | remove ID")
 	}
 	switch args[0] {
+	case "put", "get", "delete":
+		want := 2
+		if args[0] == "put" {
+			want = 3
+		}
+		if len(args) != want || args[1] == "" || args[1] == "." || args[1] == ".." {
+			return errors.New("usage: put KEY VALUE | get KEY | delete KEY (nonempty key, not . or ..)")
+		}
+		method = strings.ToUpper(args[0])
+		path = "/kv/" + url.PathEscape(args[1])
+		if args[0] == "put" {
+			payload = api.PutRequest{Value: &args[2]}
+		}
+
 	case "status":
 		if len(args) != 1 {
 			return errors.New("usage: raftctl [flags] status")
@@ -70,7 +84,21 @@ func run(args []string, out io.Writer) error {
 	if payload != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	client := &http.Client{Timeout: *timeout, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
+	client := &http.Client{Timeout: *timeout, CheckRedirect: func(next *http.Request, via []*http.Request) error {
+		if len(via) >= 5 {
+			return errors.New("too many leader redirects")
+		}
+		if next.Response == nil || next.Response.StatusCode != http.StatusTemporaryRedirect {
+			return http.ErrUseLastResponse
+		}
+		if next.URL.Scheme != "http" && next.URL.Scheme != "https" {
+			return errors.New("invalid leader URL")
+		}
+		if via[0].URL.Scheme == "https" && next.URL.Scheme != "https" {
+			return errors.New("refusing HTTPS downgrade")
+		}
+		return nil
+	}}
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
