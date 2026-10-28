@@ -18,12 +18,16 @@ Updated 29 October 2026. Implementation status is separate from required review.
   Durable nodes default to `--snapshot-entries 1000`; use `0` to disable automatic
   capture. See [ADR-0007](adr/0007-snapshots-and-compaction.md) for size limits,
   synchronous checkpoint costs and crash-ordering guarantees.
+- **5.4 Defined recovery matrix:** disk-full/I/O injection across WAL writes and
+  checkpoint publication; fail-stop protocol responses, interrupted transfers
+  and safe reopen/retry. See [recovery evidence and merge gate](stage5-recovery-validation.md).
 
 ## Still pending
 
-The rest of 5.4's failure matrix, including disk-full and further injected I/O
-failure combinations. Dynamic membership remains Stage 6. Full Stage 5 completion
-is not claimed. See ADR-0006 and ADR-0007 for the WAL format and limits.
+Required Raft review and remote CI acceptance remain pending. The defined Stage
+5.4 matrix is covered; broader adversarial histories and operational reliability
+remain Stage 7. Dynamic membership remains Stage 6. See ADR-0006 and ADR-0007 for
+the WAL format and limits; test coverage does not prove all failure interleavings.
 
 ## Checks performed
 

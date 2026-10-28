@@ -10,6 +10,28 @@ import (
 // MaxSnapshotBytes bounds one in-memory snapshot and its WAL record encoding.
 const MaxSnapshotBytes = 32 << 20
 
+// Kept private: fault injection is not a runtime/admin feature.
+type checkpointIO struct {
+	create  func(string) (walFile, string, error)
+	rename  func(string, string) error
+	syncDir func(string) error
+	open    func(string) (walFile, error)
+}
+
+func defaultCheckpointIO() checkpointIO {
+	return checkpointIO{
+		create: func(dir string) (walFile, string, error) {
+			f, err := os.CreateTemp(dir, ".raft-checkpoint-*")
+			if err != nil {
+				return nil, "", err
+			}
+			return f, f.Name(), nil
+		},
+		rename: os.Rename, syncDir: syncDirectory,
+		open: func(path string) (walFile, error) { return os.OpenFile(path, os.O_RDWR|os.O_APPEND, 0600) },
+	}
+}
+
 func cloneSnapshot(s *Snapshot) *Snapshot {
 	if s == nil {
 		return nil
@@ -47,11 +69,14 @@ func (w *WAL) Compact(through uint64) error {
 	if base == 0 || through > base {
 		return errors.New("storage: compaction requires a covering snapshot")
 	}
-	f, err := os.CreateTemp(w.dir, ".raft-checkpoint-*")
+	ops := defaultCheckpointIO()
+	if w.checkpointIO != nil {
+		ops = *w.checkpointIO
+	}
+	f, name, err := ops.create(w.dir)
 	if err != nil {
 		return w.poison(err)
 	}
-	name := f.Name()
 	defer os.Remove(name)
 	defer f.Close()
 	checkpoint := &WAL{file: f}
@@ -74,20 +99,20 @@ func (w *WAL) Compact(through uint64) error {
 	if w.checkpointHook != nil {
 		w.checkpointHook("before_rename")
 	}
-	if err = os.Rename(name, filepath.Join(w.dir, "raft.wal")); err != nil {
+	if err = ops.rename(name, filepath.Join(w.dir, "raft.wal")); err != nil {
 		return w.poison(err)
 	}
 	if w.checkpointHook != nil {
 		w.checkpointHook("after_rename")
 	}
-	if err = syncDirectory(w.dir); err != nil {
+	if err = ops.syncDir(w.dir); err != nil {
 		return w.poison(err)
 	}
 	if w.checkpointHook != nil {
 		w.checkpointHook("after_directory_sync")
 	}
 	// Reopen after rename; never continue appending to the retired inode.
-	replacement, err := os.OpenFile(filepath.Join(w.dir, "raft.wal"), os.O_RDWR|os.O_APPEND, 0600)
+	replacement, err := ops.open(filepath.Join(w.dir, "raft.wal"))
 	if err != nil {
 		return w.poison(err)
 	}

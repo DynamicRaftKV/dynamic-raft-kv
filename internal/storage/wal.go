@@ -53,7 +53,8 @@ type WAL struct {
 	failed         error
 	closed         bool
 	dir            string
-	checkpointHook func(string) // package tests observe crash boundaries
+	checkpointHook func(string)  // package tests observe crash boundaries
+	checkpointIO   *checkpointIO // nil uses OS operations; package tests inject faults
 }
 
 var _ Storage = (*WAL)(nil)

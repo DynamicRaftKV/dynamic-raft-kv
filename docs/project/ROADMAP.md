@@ -8,7 +8,10 @@ Tests include >4 MiB gRPC snapshot catch-up, checkpoint crash boundaries,
 process leader failure and full-cluster restart. Reviews and publication are
 separate; this update does not mark the whole project complete.
 
-Remaining critical path: **remaining 5.4 recovery →
+Stage 5.4's defined disk-full/I/O and protocol recovery matrix is now tested;
+see [recovery validation and merge gate](../stage5-recovery-validation.md).
+
+Remaining critical path: **Stage 3–5 review/CI and integration →
 6.1–6.4 dynamic membership → 7 reliability/observability → 4.4 Compose acceptance
 and 8 cluster UI/evaluation**. Stage 9 is optional post-MVP work.
 

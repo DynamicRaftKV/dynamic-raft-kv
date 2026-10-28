@@ -378,7 +378,7 @@ The project is structured as 9 stages, tracked on the [GitHub Project Board](htt
 | **2** | Standalone KV Engine | In-memory KV, deterministic state machine, KV Snapshot/Restore | Implemented and tested |
 | **3** | Raft Core | Election, replication, commit/application, in-process failure tests | Implemented; team review pending |
 | **4** | Networking & Client | gRPC transport, consensus HTTP, follower redirect, CLI | Integrated; Compose acceptance pending |
-| **5** | Durability & Snapshots | WAL, log compaction, InstallSnapshot RPC, crash recovery | 5.1–5.3 implemented/tested; further 5.4 faults and review pending |
+| **5** | Durability & Snapshots | WAL, log compaction, InstallSnapshot RPC, crash recovery | 5.1–5.4 defined implementation/fault matrix tested; review and remote CI pending |
 | **6** | Dynamic Membership | Joint consensus, learner nodes, single-server changes | ⏳ Pending |
 | **7** | Reliability & Observability | Chaos testing, fault injection, Prometheus dashboards | ⏳ Pending |
 | **8** | Integration & Evaluation | End-to-end tests, benchmarks, runbooks, presentation | ⏳ Pending |
