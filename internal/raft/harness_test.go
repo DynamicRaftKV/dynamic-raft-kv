@@ -37,12 +37,28 @@ func (d *memoryDisk) Append(es []storage.Entry) error {
 		return errors.New("disk append failure")
 	}
 	if len(es) > 0 {
-		d.entries = append(d.entries[:es[0].Index-1], copyEntries(es)...)
+		base := uint64(0)
+		if d.snapshot != nil {
+			base = d.snapshot.LastIncludedIndex
+		}
+		d.entries = append(d.entries[:es[0].Index-base-1], copyEntries(es)...)
 	}
 	return nil
 }
-func (*memoryDisk) InstallSnapshot(storage.Snapshot, bool) error { return ErrUnsupported }
-func (*memoryDisk) Compact(uint64) error                         { return ErrUnsupported }
+func (d *memoryDisk) InstallSnapshot(s storage.Snapshot, retain bool) error {
+	base := uint64(0)
+	if d.snapshot != nil {
+		base = d.snapshot.LastIncludedIndex
+	}
+	if retain {
+		d.entries = copyEntries(d.entries[s.LastIncludedIndex-base:])
+	} else {
+		d.entries = nil
+	}
+	d.snapshot = copySnapshot(&s)
+	return nil
+}
+func (*memoryDisk) Compact(uint64) error { return nil }
 
 type testNetwork struct {
 	mu         sync.Mutex
@@ -87,8 +103,12 @@ func (t testTransport) SendAppendEntries(ctx context.Context, p Peer, r AppendEn
 	}
 	return resp, err
 }
-func (testTransport) SendInstallSnapshot(context.Context, Peer, InstallSnapshotRequest) (InstallSnapshotResponse, error) {
-	return InstallSnapshotResponse{}, ErrUnsupported
+func (t testTransport) SendInstallSnapshot(ctx context.Context, p Peer, r InstallSnapshotRequest) (InstallSnapshotResponse, error) {
+	n, err := t.target(ctx, p.ID)
+	if err != nil {
+		return InstallSnapshotResponse{}, err
+	}
+	return n.InstallSnapshot(ctx, r)
 }
 func (testTransport) JoinCluster(context.Context, Peer, JoinClusterRequest) (JoinClusterResponse, error) {
 	return JoinClusterResponse{}, ErrUnsupported

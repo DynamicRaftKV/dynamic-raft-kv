@@ -1,13 +1,14 @@
 # RaftKV — Roadmap
 
-## Implementation update — 27 October 2026
+## Implementation update — 29 October 2026
 
 Local work now includes Stage 3.1–3.4, Stage 4's network/API/CLI code, and
-Stage 5.1–5.2 WAL/durable process integration. Local tests include separate
+Stage 5.1–5.3 WAL, durable startup, snapshot transfer/recovery and compaction.
+Tests include >4 MiB gRPC snapshot catch-up, checkpoint crash boundaries,
 process leader failure and full-cluster restart. Reviews and publication are
 separate; this update does not mark the whole project complete.
 
-Remaining critical path: **5.3 snapshots/compaction → remaining 5.4 recovery →
+Remaining critical path: **remaining 5.4 recovery →
 6.1–6.4 dynamic membership → 7 reliability/observability → 4.4 Compose acceptance
 and 8 cluster UI/evaluation**. Stage 9 is optional post-MVP work.
 

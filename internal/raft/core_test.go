@@ -609,8 +609,8 @@ func TestFiveNodesTolerateTwoUnavailablePeers(t *testing.T) {
 func TestUnsupportedOperationsAndOwnership(t *testing.T) {
 	c := newCluster(t, 1, false)
 	n := c.nodes[0]
-	if _, err := n.InstallSnapshot(context.Background(), InstallSnapshotRequest{}); !errors.Is(err, ErrUnsupported) {
-		t.Fatal(err)
+	if r, err := n.InstallSnapshot(context.Background(), InstallSnapshotRequest{}); err != nil || r.Accepted {
+		t.Fatal("accepted invalid snapshot", r, err)
 	}
 	if _, err := n.JoinCluster(context.Background(), JoinClusterRequest{}); !errors.Is(err, ErrUnsupported) {
 		t.Fatal(err)

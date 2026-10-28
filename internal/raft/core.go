@@ -15,7 +15,7 @@ import (
 var (
 	ErrStopped          = errors.New("raft: stopped")
 	ErrNotLeader        = errors.New("raft: not leader; proposal outcome may be unknown")
-	ErrUnsupported      = errors.New("raft: snapshots and membership changes are not implemented")
+	ErrUnsupported      = errors.New("raft: membership changes are not implemented")
 	ErrProposalTooLarge = errors.New("raft: encoded command exceeds 1 MiB")
 )
 
@@ -23,8 +23,8 @@ var (
 const MaxCommandBytes = 1 << 20
 
 // Config describes one node in an identical, fixed configuration on every peer.
-// StateMachine must be fresh: recovery replays only after commitment is known.
-// Storage must honor its durability contract. Stage 3 supplies only test storage.
+// StateMachine must be fresh: recovery restores a snapshot and replays the
+// suffix only after commitment is known. Storage must honor durability.
 type Config struct {
 	ID                                                 string
 	Peers                                              []Peer
@@ -35,6 +35,9 @@ type Config struct {
 	TickInterval, RPCTimeout                           time.Duration
 	// Seed makes logical-tick tests reproducible. Zero chooses a random seed.
 	Seed int64
+	// SnapshotEntries triggers a checkpoint after this many applied entries.
+	// Zero disables automatic snapshots; TakeSnapshot remains available.
+	SnapshotEntries uint64
 }
 
 type proposalResult struct {
@@ -50,7 +53,9 @@ type Node struct {
 	peers                        map[string]Peer
 	rng                          *rand.Rand
 	hard                         storage.HardState
-	log                          []storage.Entry // index zero is the immutable sentinel
+	log                          []storage.Entry // slot zero is the snapshot boundary sentinel
+	snapshot                     *storage.Snapshot
+	incoming                     *snapshotTransfer
 	role                         Role
 	leader                       string
 	commit, applied              uint64
@@ -111,8 +116,12 @@ func NewNode(c Config) (*Node, error) {
 	if err != nil {
 		return nil, fmt.Errorf("raft recover: %w", err)
 	}
+	base, lastTerm := uint64(0), uint64(0)
 	if r.Snapshot != nil {
-		return nil, ErrUnsupported
+		base, lastTerm = r.Snapshot.LastIncludedIndex, r.Snapshot.LastIncludedTerm
+		if base == 0 || base == ^uint64(0) || lastTerm == 0 || lastTerm > r.HardState.Term || len(r.Snapshot.Data) > storage.MaxSnapshotBytes || !sameConfiguration(r.Snapshot.Configuration, c.Peers) {
+			return nil, errors.New("raft: invalid recovered snapshot")
+		}
 	}
 	if r.HardState.VotedFor != "" {
 		p, ok := peers[r.HardState.VotedFor]
@@ -120,12 +129,11 @@ func NewNode(c Config) (*Node, error) {
 			return nil, errors.New("raft: invalid recovered vote")
 		}
 	}
-	lastTerm := uint64(0)
 	for i, e := range r.Entries {
 		if len(e.Data) > MaxCommandBytes {
 			return nil, ErrProposalTooLarge
 		}
-		if e.Index != uint64(i+1) || e.Term == 0 || e.Term < lastTerm || e.Term > r.HardState.Term {
+		if e.Index != base+uint64(i+1) || e.Term == 0 || e.Term < lastTerm || e.Term > r.HardState.Term {
 			return nil, errors.New("raft: invalid recovered log")
 		}
 		if e.Kind != storage.EntryCommand && e.Kind != storage.EntryNoop {
@@ -133,11 +141,21 @@ func NewNode(c Config) (*Node, error) {
 		}
 		lastTerm = e.Term
 	}
+	if r.Snapshot != nil {
+		if err := c.StateMachine.Restore(r.Snapshot.Data); err != nil {
+			return nil, fmt.Errorf("raft restore: %w", err)
+		}
+	}
 	if c.Seed == 0 {
 		c.Seed = rand.Int63()
 	}
 	life, cancel := context.WithCancel(context.Background())
 	n := &Node{c: c, peers: peers, rng: rand.New(rand.NewSource(c.Seed)), hard: r.HardState, log: append([]storage.Entry{{}}, copyEntries(r.Entries)...), role: Follower, next: map[string]uint64{}, match: map[string]uint64{}, inflight: map[string]bool{}, pending: map[uint64]chan proposalResult{}, life: life, cancel: cancel}
+	n.snapshot = copySnapshot(r.Snapshot)
+	if r.Snapshot != nil {
+		n.log[0] = storage.Entry{Index: base, Term: r.Snapshot.LastIncludedTerm}
+		n.commit, n.applied = base, base
+	}
 	n.resetElectionLocked()
 	return n, nil
 }
@@ -149,7 +167,9 @@ func copyEntries(es []storage.Entry) []storage.Entry {
 	}
 	return out
 }
-func (n *Node) lastLocked() uint64 { return uint64(len(n.log) - 1) }
+func (n *Node) baseLocked() uint64                     { return n.log[0].Index }
+func (n *Node) entryLocked(index uint64) storage.Entry { return n.log[index-n.baseLocked()] }
+func (n *Node) lastLocked() uint64                     { return n.baseLocked() + uint64(len(n.log)-1) }
 func (n *Node) resetElectionLocked() {
 	n.elapsed = 0
 	n.deadline = n.c.ElectionMinTicks + n.rng.Intn(n.c.ElectionMaxTicks-n.c.ElectionMinTicks+1)
@@ -179,6 +199,7 @@ func (n *Node) saveLocked(h storage.HardState) error {
 }
 func (n *Node) followLocked(term uint64, leader string) error {
 	if term > n.hard.Term {
+		n.incoming = nil
 		if err := n.saveLocked(storage.HardState{Term: term}); err != nil {
 			return err
 		}
@@ -195,7 +216,7 @@ func (n *Node) appendLocked(es []storage.Entry) error {
 	if err := n.c.Storage.Append(copyEntries(es)); err != nil {
 		return n.haltLocked(fmt.Errorf("raft append: %w", err))
 	}
-	n.log = append(n.log[:es[0].Index], copyEntries(es)...)
+	n.log = append(n.log[:es[0].Index-n.baseLocked()], copyEntries(es)...)
 	return nil
 }
 func (n *Node) quorumLocked() int {

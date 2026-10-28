@@ -14,10 +14,9 @@ import (
 )
 
 var (
-	ErrCorrupt              = errors.New("storage: corrupt WAL")
-	ErrLocked               = errors.New("storage: data directory already in use")
-	ErrClosed               = errors.New("storage: WAL closed")
-	ErrSnapshotsUnsupported = errors.New("storage: snapshot installation and compaction not implemented")
+	ErrCorrupt = errors.New("storage: corrupt WAL")
+	ErrLocked  = errors.New("storage: data directory already in use")
+	ErrClosed  = errors.New("storage: WAL closed")
 )
 
 const walMagic = "RAFTKV01"
@@ -26,9 +25,11 @@ const maxRecordBytes = 64 << 20
 var crcTable = crc32.MakeTable(crc32.Castagnoli)
 
 type walRecord struct {
-	Type    string     `json:"type"`
-	Hard    *HardState `json:"hard_state,omitempty"`
-	Entries []Entry    `json:"entries,omitempty"`
+	Type     string     `json:"type"`
+	Hard     *HardState `json:"hard_state,omitempty"`
+	Entries  []Entry    `json:"entries,omitempty"`
+	Snapshot *Snapshot  `json:"snapshot,omitempty"`
+	Retain   bool       `json:"retain_suffix,omitempty"`
 }
 
 type walFile interface {
@@ -42,15 +43,17 @@ type walFile interface {
 
 // WAL synchronously syncs every accepted operation before publishing its memory
 // view. An I/O error poisons the handle: reopen/recover before any further work.
-// One process owns a directory. This first format stores an uncompacted log;
-// snapshot installation and compaction are explicitly unsupported.
+// One process owns a directory. Snapshots publish as a single WAL record;
+// compaction atomically replaces the WAL with a checkpoint and retained suffix.
 type WAL struct {
-	mu     sync.Mutex
-	file   walFile
-	lock   *os.File
-	state  Recovered
-	failed error
-	closed bool
+	mu             sync.Mutex
+	file           walFile
+	lock           *os.File
+	state          Recovered
+	failed         error
+	closed         bool
+	dir            string
+	checkpointHook func(string) // package tests observe crash boundaries
 }
 
 var _ Storage = (*WAL)(nil)
@@ -72,7 +75,7 @@ func OpenWAL(dir string) (*WAL, error) {
 		lock.Close()
 		return nil, err
 	}
-	w := &WAL{lock: lock}
+	w := &WAL{lock: lock, dir: dir}
 	ok := false
 	defer func() {
 		if !ok {
@@ -238,7 +241,28 @@ func (w *WAL) trimTail(offset int64) error {
 	return w.file.Sync()
 }
 func (w *WAL) validate(r walRecord) error {
+	if r.Type != "snapshot" && (r.Snapshot != nil || r.Retain) {
+		return errors.New("unexpected snapshot fields")
+	}
 	switch r.Type {
+	case "snapshot":
+		if r.Snapshot == nil || r.Hard != nil || len(r.Entries) != 0 {
+			return errors.New("invalid snapshot record")
+		}
+		s := r.Snapshot
+		if s.LastIncludedIndex == 0 || s.LastIncludedIndex == ^uint64(0) || s.LastIncludedTerm == 0 || s.LastIncludedTerm > w.state.HardState.Term || len(s.Data) > MaxSnapshotBytes || len(s.Configuration) > 1<<20 {
+			return errors.New("invalid snapshot boundary or size")
+		}
+		base, term := w.boundary()
+		if s.LastIncludedIndex <= base || s.LastIncludedTerm < term {
+			return errors.New("snapshot regression")
+		}
+		if r.Retain {
+			i := s.LastIncludedIndex - base
+			if i > uint64(len(w.state.Entries)) || w.state.Entries[i-1].Term != s.LastIncludedTerm {
+				return errors.New("snapshot retention boundary mismatch")
+			}
+		}
 	case "hard_state":
 		if r.Hard == nil || len(r.Entries) != 0 {
 			return errors.New("invalid hard-state record")
@@ -252,12 +276,12 @@ func (w *WAL) validate(r walRecord) error {
 			return errors.New("invalid append record")
 		}
 		start := r.Entries[0].Index
-		if start == 0 || start > uint64(len(w.state.Entries))+1 {
+		base, previousTerm := w.boundary()
+		if start <= base || start > base+uint64(len(w.state.Entries))+1 {
 			return errors.New("noncontiguous append")
 		}
-		previousTerm := uint64(0)
-		if start > 1 {
-			previousTerm = w.state.Entries[start-2].Term
+		if start > base+1 {
+			previousTerm = w.state.Entries[start-base-2].Term
 		}
 		for i, e := range r.Entries {
 			if e.Index != start+uint64(i) || e.Term == 0 || e.Term < previousTerm || e.Term > w.state.HardState.Term || e.Kind > EntryConfiguration {
@@ -273,8 +297,17 @@ func (w *WAL) validate(r walRecord) error {
 func (w *WAL) apply(r walRecord) {
 	if r.Hard != nil {
 		w.state.HardState = *r.Hard
+	} else if r.Snapshot != nil {
+		base, _ := w.boundary()
+		if r.Retain {
+			w.state.Entries = cloneEntries(w.state.Entries[r.Snapshot.LastIncludedIndex-base:])
+		} else {
+			w.state.Entries = nil
+		}
+		w.state.Snapshot = cloneSnapshot(r.Snapshot)
 	} else {
-		w.state.Entries = append(w.state.Entries[:r.Entries[0].Index-1], cloneEntries(r.Entries)...)
+		base, _ := w.boundary()
+		w.state.Entries = append(w.state.Entries[:r.Entries[0].Index-base-1], cloneEntries(r.Entries)...)
 	}
 }
 func (w *WAL) persist(r walRecord) error {
@@ -311,7 +344,7 @@ func (w *WAL) Recover() (Recovered, error) {
 	if err := w.usable(); err != nil {
 		return Recovered{}, err
 	}
-	return Recovered{HardState: w.state.HardState, Entries: cloneEntries(w.state.Entries)}, nil
+	return Recovered{HardState: w.state.HardState, Snapshot: cloneSnapshot(w.state.Snapshot), Entries: cloneEntries(w.state.Entries)}, nil
 }
 func (w *WAL) SaveHardState(h HardState) error {
 	w.mu.Lock()
@@ -329,8 +362,6 @@ func (w *WAL) Append(entries []Entry) error {
 	}
 	return w.persist(walRecord{Type: "append", Entries: entries})
 }
-func (w *WAL) InstallSnapshot(Snapshot, bool) error { return ErrSnapshotsUnsupported }
-func (w *WAL) Compact(uint64) error                 { return ErrSnapshotsUnsupported }
 func (w *WAL) Close() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()

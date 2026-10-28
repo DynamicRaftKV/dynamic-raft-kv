@@ -10,6 +10,7 @@ type config struct {
 	id, peers, dataDir, httpAddr, grpcAddr string
 	clusterConfig                          string
 	demo                                   bool
+	snapshotEntries                        uint64
 }
 
 func env(key, fallback string) string {
@@ -23,6 +24,7 @@ func parseConfig(args []string) (config, error) {
 	var c config
 	f := flag.NewFlagSet("raftkv", flag.ContinueOnError)
 	f.BoolVar(&c.demo, "demo", false, "enable standalone KV presentation UI at /demo/ (no Raft)")
+	f.Uint64Var(&c.snapshotEntries, "snapshot-entries", 1000, "checkpoint after this many applied entries (0 disables automatic snapshots)")
 	f.StringVar(&c.clusterConfig, "cluster-config", env("RAFTKV_CLUSTER_CONFIG", ""), "JSON peer configuration; enables durable Raft mode")
 	f.StringVar(&c.id, "node-id", env("RAFTKV_NODE_ID", "node1"), "unique node identity")
 	f.StringVar(&c.peers, "peers", env("RAFTKV_PEERS", ""), "bootstrap peers (reserved; not consumed in Stage 1)")

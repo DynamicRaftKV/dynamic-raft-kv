@@ -34,12 +34,14 @@ Dynamic Raft KV
 ## Current implementation status — 27 October 2026
 
 The standalone KV engine (Stage 2) and fixed-membership Raft core (Stage 3,
-phases 3.1–3.4) are implemented and tested. Stage 3 runs through an in-process
-test cluster; it is **not connected to the HTTP server or demo yet**. The demo
-remains memory-only and single-node. Stage 4 gRPC, HTTP and CLI adapters now pass
-real TCP tests with 1, 3, 5 and 7 nodes. Stage 5.1–5.2 now adds a synced WAL and
-durable process startup using `--cluster-config`. Snapshot transfer/compaction,
-dynamic membership and real-cluster Docker/UI integration remain pending. Foundation/interface
+phases 3.1–3.4) are implemented and tested. Stage 4 connects the core to HTTP,
+gRPC and CLI with real TCP tests for 1, 3, 5 and 7 nodes. The demo remains
+memory-only and single-node. Stage 5.1–5.3 adds a synced WAL, durable process
+startup using `--cluster-config`, snapshots, chunked transfer and log compaction.
+Durable nodes checkpoint every 1000 applied entries by default; configure this
+with `--snapshot-entries` (`0` disables automatic capture). See
+[snapshot limits and ordering](docs/adr/0007-snapshots-and-compaction.md).
+Dynamic membership and real-cluster Docker/UI integration remain pending. Foundation/interface
 review and the required Raft reviews remain open.
 
 See [Stage 3 plan](docs/stage3-plan.md) and [verification and limitations](docs/stage3-status.md).
@@ -376,7 +378,7 @@ The project is structured as 9 stages, tracked on the [GitHub Project Board](htt
 | **2** | Standalone KV Engine | In-memory KV, deterministic state machine, KV Snapshot/Restore | Implemented and tested |
 | **3** | Raft Core | Election, replication, commit/application, in-process failure tests | Implemented; team review pending |
 | **4** | Networking & Client | gRPC transport, consensus HTTP, follower redirect, CLI | Integrated; Compose acceptance pending |
-| **5** | Durability & Snapshots | WAL, log compaction, InstallSnapshot RPC, crash recovery | WAL/process integration tested; snapshots/compaction pending |
+| **5** | Durability & Snapshots | WAL, log compaction, InstallSnapshot RPC, crash recovery | 5.1–5.3 implemented/tested; further 5.4 faults and review pending |
 | **6** | Dynamic Membership | Joint consensus, learner nodes, single-server changes | ⏳ Pending |
 | **7** | Reliability & Observability | Chaos testing, fault injection, Prometheus dashboards | ⏳ Pending |
 | **8** | Integration & Evaluation | End-to-end tests, benchmarks, runbooks, presentation | ⏳ Pending |

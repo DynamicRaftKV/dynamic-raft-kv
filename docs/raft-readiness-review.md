@@ -4,6 +4,11 @@ Reviewed 27 October 2026 against local source/tests and fetched GitHub main
 `6e6840a`. Local Stage 3–5.2 changes are not published merely because this report
 exists. Required Raft reviews remain open.
 
+29 October update: Stage 3–5.2 was published on `codex/stage3-raft-core`
+(`a125385`). Stage 5.3 now adds durable snapshots, chunked catch-up and
+compaction; see ADR-0007 and stage5-status.md. The original findings below
+remain a historical review baseline, not a claim these fixes are still absent.
+
 ## What “full Raft KV” means here
 
 The target is an independently implemented, durable Raft-backed KV service with
@@ -30,9 +35,9 @@ Those are outside this project's agreed MVP. [Source: etcd API](https://etcd.io/
 |---|---|---|
 | Elections/replication | Fixed voter quorum, no-op, freshness, suffix repair, current-term commit | Team review, larger adversarial schedules |
 | Client consistency | GET/PUT/DELETE through Propose; success after application | History-based linearizability validation during partitions/restarts |
-| Storage | Synced framed WAL, checksums, fail-stop errors and retained-state recovery | Atomic snapshots, compaction, bounded recovery/log retention |
+| Storage | Synced WAL, atomic snapshot records and WAL compaction | Broader disk failure injection, admission limits and checkpoint performance |
 | Networking | Real TCP tests for 1/3/5/7 nodes; bounded append requests | Docker/public-address acceptance and broader network-fault tests |
-| Recovery | Actual leader kill and full three-process restart tests | Snapshot boundary/follower recovery and more crash points |
+| Recovery | Leader kill/full restart, chunked follower catch-up and checkpoint process-crash tests | Additional failure combinations and hardware durability evaluation |
 | Membership | Static learner attribute; immutable bootstrap configuration | Durable live configuration changes, join/promotion/removal |
 | UI | Standalone commands/snapshots and updated project report | Real-cluster status and operational controls |
 

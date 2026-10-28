@@ -42,7 +42,8 @@ func (n *Node) startCampaignLocked() RequestVoteRequest {
 	n.role = Candidate
 	n.leader = ""
 	n.resetElectionLocked()
-	last := n.log[n.lastLocked()]
+	n.incoming = nil
+	last := n.entryLocked(n.lastLocked())
 	req := RequestVoteRequest{Term: n.hard.Term, CandidateID: n.c.ID, LastLogIndex: last.Index, LastLogTerm: last.Term}
 	if n.quorumLocked() == 1 {
 		n.leadLocked()
@@ -121,7 +122,7 @@ func (n *Node) RequestVote(ctx context.Context, r RequestVoteRequest) (RequestVo
 			return resp(false, err)
 		}
 	}
-	last := n.log[n.lastLocked()]
+	last := n.entryLocked(n.lastLocked())
 	fresh := r.LastLogTerm > last.Term || (r.LastLogTerm == last.Term && r.LastLogIndex >= last.Index)
 	if !n.voter(n.c.ID) || !fresh || (n.hard.VotedFor != "" && n.hard.VotedFor != r.CandidateID) {
 		return resp(false, nil)

@@ -57,11 +57,11 @@ func TestWALRecoverySuffixReplacementAndOwnership(t *testing.T) {
 	if !reflect.DeepEqual(got, expected) {
 		t.Fatalf("%+v != %+v", got, expected)
 	}
-	if err := w.InstallSnapshot(Snapshot{}, false); !errors.Is(err, ErrSnapshotsUnsupported) {
-		t.Fatal(err)
+	if err := w.InstallSnapshot(Snapshot{}, false); err == nil {
+		t.Fatal("accepted invalid snapshot")
 	}
-	if err := w.Compact(1); !errors.Is(err, ErrSnapshotsUnsupported) {
-		t.Fatal(err)
+	if err := w.Compact(1); err == nil {
+		t.Fatal("compacted without snapshot")
 	}
 }
 

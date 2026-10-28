@@ -16,6 +16,7 @@ import (
 
 	"github.com/DynamicRaftKV/dynamic-raft-kv/internal/raft"
 	"github.com/DynamicRaftKV/dynamic-raft-kv/internal/state"
+	"github.com/DynamicRaftKV/dynamic-raft-kv/internal/storage"
 )
 
 func TestDurableNodeProcess(t *testing.T) {
@@ -24,6 +25,7 @@ func TestDurableNodeProcess(t *testing.T) {
 		return
 	}
 	c := config{id: os.Getenv("RAFTKV_PROCESS_TEST_ID"), dataDir: os.Getenv("RAFTKV_PROCESS_TEST_DATA"), httpAddr: os.Getenv("RAFTKV_PROCESS_TEST_HTTP"), grpcAddr: os.Getenv("RAFTKV_PROCESS_TEST_GRPC"), clusterConfig: configPath}
+	c.snapshotEntries = 2
 	if err := serve(context.Background(), c); err != nil {
 		t.Fatal(err)
 	}
@@ -158,6 +160,16 @@ func TestDurableClusterLeaderKillAndFullRestart(t *testing.T) {
 	put(second, "after-kill", "also-retained")
 	for i := range commands {
 		stop(i)
+	}
+	// The committed checkpoint must survive a hard process kill without Close.
+	disk, err := storage.OpenWAL(filepath.Join(root, peers[second].ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	recovery, err := disk.Recover()
+	disk.Close()
+	if err != nil || recovery.Snapshot == nil {
+		t.Fatal("missing durable process snapshot", err)
 	}
 	for i := range commands {
 		start(i)

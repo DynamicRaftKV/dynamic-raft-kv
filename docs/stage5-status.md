@@ -1,6 +1,6 @@
 # Stage 5 progress: durable storage and runnable nodes
 
-Updated 27 October 2026. Local implementation, review/push still separate.
+Updated 29 October 2026. Implementation status is separate from required review.
 
 ## Delivered
 
@@ -13,12 +13,17 @@ Updated 27 October 2026. Local implementation, review/push still separate.
 - **Part of 5.4:** subprocess kill after acknowledged sync, real three-process
   leader kill, committed data check, full-cluster kill/restart and post-recovery
   reads/writes. These are actual process tests, not only memory-store simulations.
+- **5.3 Snapshots:** applied-state checkpoints, chunked follower installation,
+  fixed-configuration validation, snapshot restore and atomic WAL compaction.
+  Durable nodes default to `--snapshot-entries 1000`; use `0` to disable automatic
+  capture. See [ADR-0007](adr/0007-snapshots-and-compaction.md) for size limits,
+  synchronous checkpoint costs and crash-ordering guarantees.
 
 ## Still pending
 
-5.3 snapshot installation, snapshot recovery and compaction; the rest of 5.4's
-failure matrix. Snapshot boundaries and dynamic membership are not supported.
-Full Stage 5 completion is not claimed. See ADR-0006 for WAL format and limits.
+The rest of 5.4's failure matrix, including disk-full and further injected I/O
+failure combinations. Dynamic membership remains Stage 6. Full Stage 5 completion
+is not claimed. See ADR-0006 and ADR-0007 for the WAL format and limits.
 
 ## Checks performed
 
@@ -28,8 +33,11 @@ Full Stage 5 completion is not claimed. See ADR-0006 for WAL format and limits.
   directory lock contention, all byte cuts within an incomplete final record,
   checksum corruption, injected write/sync failures, and process termination
   after an acknowledged sync.
-- Formatting and diff whitespace checks are clean. Docker tests and snapshot
-  recovery tests are not claimed.
+- Snapshot tests cover every byte cut of an installation record, corrupted
+  records, suffix retention/discard, transfer ordering/retries, >4 MiB gRPC
+  catch-up and real process crashes around checkpoint rename/directory sync.
+- Three-process leader kill/full restart now runs with automatic snapshots.
+  Docker acceptance and hardware power-loss behavior are not claimed.
 
 ## Run three durable nodes without Docker
 

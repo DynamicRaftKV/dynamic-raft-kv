@@ -29,7 +29,7 @@ func (n *Node) AppendEntries(ctx context.Context, r AppendEntriesRequest) (Appen
 		return resp(false, err)
 	}
 	n.resetElectionLocked()
-	if r.PrevLogIndex > n.lastLocked() || n.log[r.PrevLogIndex].Term != r.PrevLogTerm {
+	if r.PrevLogIndex < n.baseLocked() || r.PrevLogIndex > n.lastLocked() || n.entryLocked(r.PrevLogIndex).Term != r.PrevLogTerm {
 		return resp(false, nil)
 	}
 	prev := r.PrevLogTerm
@@ -46,7 +46,7 @@ func (n *Node) AppendEntries(ctx context.Context, r AppendEntriesRequest) (Appen
 		prev = e.Term
 	}
 	for i, e := range r.Entries {
-		if e.Index > n.lastLocked() || n.log[e.Index].Term != e.Term {
+		if e.Index > n.lastLocked() || n.entryLocked(e.Index).Term != e.Term {
 			if e.Index <= n.commit {
 				return resp(false, errors.New("raft: conflicting committed entry"))
 			}
@@ -86,19 +86,25 @@ func (n *Node) replicate(ctx context.Context) {
 			}
 			n.inflight[p.ID] = true
 			next := n.next[p.ID]
-			prev := n.log[next-1]
+			if next <= n.baseLocked() {
+				s, term := copySnapshot(n.snapshot), n.hard.Term
+				n.mu.Unlock()
+				n.sendSnapshot(ctx, p, term, s)
+				return
+			}
+			prev := n.entryLocked(next - 1)
 			// Leave wire-encoding headroom below gRPC's default 4 MiB receive
 			// limit. Catch-up proceeds over successive heartbeat batches.
 			end, size := next, 0
 			for end <= n.lastLocked() && end-next < 128 {
-				cost := len(n.log[end].Data) + 64
+				cost := len(n.entryLocked(end).Data) + 64
 				if size+cost > 2*MaxCommandBytes {
 					break
 				}
 				size += cost
 				end++
 			}
-			r := AppendEntriesRequest{Term: n.hard.Term, LeaderID: n.c.ID, PrevLogIndex: prev.Index, PrevLogTerm: prev.Term, Entries: copyEntries(n.log[next:end]), LeaderCommit: n.commit}
+			r := AppendEntriesRequest{Term: n.hard.Term, LeaderID: n.c.ID, PrevLogIndex: prev.Index, PrevLogTerm: prev.Term, Entries: copyEntries(n.log[next-n.baseLocked() : end-n.baseLocked()]), LeaderCommit: n.commit}
 			n.mu.Unlock()
 			rpc, cancel := n.rpcContext(ctx)
 			defer cancel()
@@ -133,7 +139,7 @@ func (n *Node) replicate(ctx context.Context) {
 
 func (n *Node) advanceLocked() {
 	for i := n.lastLocked(); i > n.commit; i-- {
-		if n.log[i].Term != n.hard.Term {
+		if n.entryLocked(i).Term != n.hard.Term {
 			continue
 		}
 		votes := 0
@@ -151,7 +157,7 @@ func (n *Node) advanceLocked() {
 }
 func (n *Node) applyLocked() error {
 	for n.applied < n.commit {
-		e := n.log[n.applied+1]
+		e := n.entryLocked(n.applied + 1)
 		var data []byte
 		var err error
 		if e.Kind == storage.EntryCommand {
@@ -165,6 +171,9 @@ func (n *Node) applyLocked() error {
 			ch <- proposalResult{data: append([]byte(nil), data...), err: err}
 			delete(n.pending, e.Index)
 		}
+	}
+	if n.c.SnapshotEntries > 0 && n.applied-n.baseLocked() >= n.c.SnapshotEntries {
+		return n.takeSnapshotLocked()
 	}
 	return nil
 }
@@ -214,9 +223,6 @@ func (n *Node) Propose(ctx context.Context, data []byte) ([]byte, error) {
 	}
 }
 
-func (n *Node) InstallSnapshot(context.Context, InstallSnapshotRequest) (InstallSnapshotResponse, error) {
-	return InstallSnapshotResponse{Term: n.Status().Term}, ErrUnsupported
-}
 func (n *Node) JoinCluster(context.Context, JoinClusterRequest) (JoinClusterResponse, error) {
 	return JoinClusterResponse{LeaderHTTPAddress: n.Status().LeaderHTTPAddress}, ErrUnsupported
 }

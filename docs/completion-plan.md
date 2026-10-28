@@ -1,6 +1,6 @@
 # Remaining project completion plan
 
-Updated 27 October 2026 after WAL and process integration work. Code status is
+Updated 29 October 2026 after snapshot and compaction work. Code status is
 separate from reviews, deployment and final acceptance.
 
 The [etcd comparison and readiness review](raft-readiness-review.md) adds
@@ -14,7 +14,7 @@ extensions remain separate from the MVP.
 | 2 Standalone KV | Implemented and tested | No additional feature work planned; retain regression checks |
 | 3 Raft core | Four phases implemented and tested | Required Raft reviews and broader system-level validation |
 | 4 Network/client integration | gRPC, HTTP, CLI and durable startup implemented | Phase 4.4 Docker Compose deployment and acceptance through published ports; failure/restart checks in containers |
-| 5 Durability/recovery | 5.1 WAL and 5.2 process integration implemented | 5.3 snapshots, installation and compaction; finish 5.4 recovery suite for snapshot boundaries, corruption and additional failure timing |
+| 5 Durability/recovery | 5.1–5.3 WAL, startup, snapshots and compaction implemented/tested | Finish 5.4 disk-full and additional failure combinations; Raft review |
 | 6 Dynamic membership | Not implemented | 6.1 durable configuration-change algorithm/entries; 6.2 joining; 6.3 learner catch-up/promotion; 6.4 membership/removal safety and restart tests |
 | 7 Reliability/observability | Initial core, TCP and process failure tests exist | 7.1 broader fault injection; 7.2 failure combinations; 7.3 invariant/property checks; 7.4 structured logging, metrics and diagnostics |
 | 8 Integration/evaluation | Standalone presentation UI exists | 8.1 connect UI to the real cluster and reproducible full demo; 8.2 accurate user/operator docs; 8.3 evaluation/benchmarks/report/deck; 8.4 release/review close-out |
@@ -22,7 +22,7 @@ extensions remain separate from the MVP.
 
 ## Order of remaining critical work
 
-1. Snapshot/compaction and recovery, preserving the committed state/log boundary.
+1. Finish remaining recovery fault injection; snapshot/compaction is now implemented (ADR-0007).
 2. Freeze and implement the membership-change protocol, then join as learner,
    catch-up, promotion and removal. Do not count a working JoinCluster wire
    adapter as a working membership algorithm.

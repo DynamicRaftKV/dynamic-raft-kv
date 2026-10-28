@@ -76,7 +76,7 @@ func serve(ctx context.Context, c config) error {
 		}
 		client := &transport.Client{}
 		defer client.Close()
-		node, err = raft.NewNode(raft.Config{ID: c.id, Peers: peers, Storage: disk, StateMachine: state.NewStore(), Transport: client})
+		node, err = raft.NewNode(raft.Config{ID: c.id, Peers: peers, Storage: disk, StateMachine: state.NewStore(), Transport: client, SnapshotEntries: c.snapshotEntries})
 		if err != nil {
 			return err
 		}

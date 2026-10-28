@@ -6,6 +6,8 @@ see ADR-0004. Compile-time conformance is not a system-wide freeze. State and
 Raft semantics are implemented as documented in stage2-status.md and
 stage3-status.md. Stage 4 gRPC/HTTP/CLI adapters are implemented; see ADR-0005.
 Stage 5.1–5.2 now implements WAL storage and durable process wiring; see ADR-0006.
+Stage 5.3 implements snapshot assembly, recovery and compaction; ADR-0007 defines
+the fixed configuration envelope, ordering, retry and size constraints.
 
 ## Established architecture
 
@@ -29,11 +31,11 @@ Stage 5.1–5.2 now implements WAL storage and durable process wiring; see ADR-0
 | Errors | Invalid commands wrap ErrInvalidCommand; invalid restore wraps ErrInvalidSnapshot; neither mutates state | Implemented Stage 2; HTTP mapping remains pending |
 | Proposal | Success after application; cancellation stops waiting, not committed work | Core and HTTP adapter implemented |
 | RPC types | Plain Go structs in raft, protobuf types in proto/raftkvpb | gRPC mapping implemented Stage 4 |
-| Snapshot RPC | Unary chunk messages with offset/done; no resumable transfer implementation | Review transfer identity, retries, limits before freeze |
-| Storage | Synchronous durable success; owner serializes calls; full active log recovered into memory | WAL implemented; snapshots/compaction pending |
+| Snapshot RPC | Ordered unary chunks ≤256 KiB; assembly ≤32 MiB; retries start at zero | Implemented; final reply means durable; review ADR-0007 |
+| Storage | Synchronous durable success; owner serializes calls; snapshot and active suffix recovered into memory | WAL, snapshot installation and atomic compaction implemented |
 | Log append | Contiguous batch can replace an uncommitted suffix, never a committed one | Stage 5 |
-| Snapshot install | Atomically publish metadata, payload and suffix-retention decision | Stage 5 |
-| Compaction | Reclaim covered prefix after durable snapshot; recovery filters covered entries | Stage 5 |
+| Snapshot install | Atomically publish metadata, payload and suffix-retention decision | Implemented Stage 5.3 |
+| Compaction | Reclaim covered prefix after durable snapshot; recovery filters covered entries | Implemented Stage 5.3 |
 
 Store methods must not rely on time, randomness, or map iteration order. The
 caller applies committed commands in log order. Mutex protection alone does not
@@ -66,11 +68,11 @@ states, and configuration payload encoding require SDD review.
    RaftNode currently contains only the plan's Propose/Status/IsLeader surface.
 6. Review the Stage 4 ErrNotLeader to HTTP 307/503 mapping and externally
    reachable leader address configuration. IsLeader cannot authorize a proposal.
-7. Review implemented inbound RPC dispatch; specify snapshot chunk assembly.
+7. Review implemented inbound RPC dispatch and ADR-0007 snapshot chunk assembly.
    Server accepts RPCHandler; durable startup wiring is implemented in Stage 5.2.
 8. Approve Storage atomicity/recovery guarantees and memory-backed active-log
    assumption; define WAL constants only after the actual format is known.
-9. Resolve snapshot membership metadata and transfer bounds/identity, including
+9. Review ADR-0007 fixed membership metadata and transfer bounds/identity, including
    whether the SDD requires gRPC streaming instead of chunked unary calls.
 10. Specify fault-hook location/build constraint; only a placeholder is in scope.
 11. Confirm priority amendments: API docs, local build target and interface
