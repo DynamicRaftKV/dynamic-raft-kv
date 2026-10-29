@@ -1,0 +1,6 @@
+{"peers":[
+ {"id":"node1","grpc_address":"127.0.0.1:9101","http_address":"http://127.0.0.1:8101"},
+ {"id":"node2","grpc_address":"127.0.0.1:9102","http_address":"http://127.0.0.1:8102"},
+ {"id":"node3","grpc_address":"127.0.0.1:9103","http_address":"http://127.0.0.1:8103"},
+ {"id":"node4","grpc_address":"127.0.0.1:9104","http_address":"http://127.0.0.1:8104","learner":true}
+]}

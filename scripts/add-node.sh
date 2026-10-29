@@ -5,5 +5,5 @@ case "${1:-}" in
   4|5) ;;
   *) echo 'usage: sh scripts/add-node.sh 4|5' >&2; exit 2 ;;
 esac
-echo "Starting node$1 process only. Membership admission is unimplemented until Stage 6."
+echo "Starting node$1 in joining mode. Use raftctl join, then promote after catch-up."
 docker compose --profile "node$1" up -d --build "node$1"

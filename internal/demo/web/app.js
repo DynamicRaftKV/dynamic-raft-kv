@@ -3,6 +3,7 @@ const $ = id => document.getElementById(id);
 let operation = 'PUT', busy = false, savedSnapshot = null, capturedAt = null;
 const history = [];
 const views = {
+ cluster: ['Live cluster', 'Real node status, replicated data and dynamic membership.'],
  workspace: ['KV workspace', 'Write a key. Read it back. See your Go engine at work.'],
  snapshots: ['Snapshots', 'Capture your data, make a change, then restore the exact state.'],
  implementation: ['Implementation', 'A clear view of what is built, verified, and still ahead.'],
@@ -14,6 +15,8 @@ function showView(name) {
  document.querySelectorAll('.nav-item').forEach(el => { el.classList.toggle('active', el.dataset.view === name); if (el.dataset.view === name) el.setAttribute('aria-current','page'); else el.removeAttribute('aria-current'); });
  $('page-title').textContent = views[name][0]; $('breadcrumb').textContent = views[name][0]; $('page-description').textContent = views[name][1];
  historyReplace(name);
+ document.querySelector('.notice').hidden = name === 'cluster';
+ document.querySelector('.page-heading .pill').textContent = name === 'cluster' ? 'Durable cluster' : 'Standalone mode';
 }
 function historyReplace(name) { window.history.replaceState(null, '', '#' + name); }
 document.querySelectorAll('[data-view]').forEach(el => el.addEventListener('click', () => showView(el.dataset.view)));

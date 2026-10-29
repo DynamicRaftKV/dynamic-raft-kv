@@ -25,3 +25,7 @@ check-raft-imports:
 	GO=$(GO) sh scripts/check-raft-imports.sh
 demo:
 	$(GO) run ./cmd/raftkv --demo --http-addr 127.0.0.1:8080 --grpc-addr 127.0.0.1:9090
+
+.PHONY: demo-cluster
+demo-cluster: build
+	bash scripts/run-local-demo.sh

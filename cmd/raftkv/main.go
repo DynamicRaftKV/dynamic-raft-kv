@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/DynamicRaftKV/dynamic-raft-kv/internal/api"
 	"github.com/DynamicRaftKV/dynamic-raft-kv/internal/demo"
+	"github.com/DynamicRaftKV/dynamic-raft-kv/internal/observability"
 	"github.com/DynamicRaftKV/dynamic-raft-kv/internal/raft"
 	"github.com/DynamicRaftKV/dynamic-raft-kv/internal/state"
 	"github.com/DynamicRaftKV/dynamic-raft-kv/internal/storage"
@@ -76,17 +78,25 @@ func serve(ctx context.Context, c config) error {
 		}
 		client := &transport.Client{}
 		defer client.Close()
-		node, err = raft.NewNode(raft.Config{ID: c.id, Peers: peers, Storage: disk, StateMachine: state.NewStore(), Transport: client, SnapshotEntries: c.snapshotEntries, Joining: c.joining})
+		node, err = raft.NewNode(raft.Config{ID: c.id, Peers: peers, Storage: disk, StateMachine: state.NewStore(), Transport: client, SnapshotEntries: c.snapshotEntries, Joining: c.joining, Logger: slog.New(slog.NewJSONHandler(os.Stderr, nil))})
 		if err != nil {
 			return err
 		}
 		defer node.Stop()
 		adapter.Handler = node
-		handler = api.NewRaftHandler(node)
+		handler = observability.Handler(node, c.dataDir, api.NewRaftHandler(node))
 	}
 	if c.demo {
 		mux := http.NewServeMux()
-		mux.Handle("/demo/", demo.NewHandler(state.NewStore()))
+		var demoHandler http.Handler = demo.NewHandler(state.NewStore())
+		if c.demoClusterConfig != "" {
+			peers, err := readPeers(c.demoClusterConfig, c.id)
+			if err != nil {
+				return err
+			}
+			demoHandler = demo.NewClusterHandler(state.NewStore(), peers)
+		}
+		mux.Handle("/demo/", demoHandler)
 		mux.Handle("/", handler)
 		handler = mux
 		log.Printf("Standalone KV demo enabled: http://%s/demo/ (memory only, no Raft)", c.httpAddr)

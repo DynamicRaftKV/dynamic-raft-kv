@@ -53,6 +53,9 @@ func membershipHandler(node raft.RaftNode, operation string) http.HandlerFunc {
 		err := m.ChangeMembership(ctx, operation, id, peer)
 		if err != nil {
 			switch {
+			case errors.Is(err, raft.ErrBusy):
+				w.Header().Set("Retry-After", "1")
+				respondError(w, 429, err.Error())
 			case errors.Is(err, raft.ErrNotLeader):
 				address := node.Status().LeaderHTTPAddress
 				u, parseErr := url.Parse(address)

@@ -44,7 +44,8 @@ with `--snapshot-entries` (`0` disables periodic capture, not membership checkpo
 Stage 6 now implements durable joint consensus, learner join/catch-up, promotion
 and removal, with core and four-process restart tests. See the
 [membership runbook](docs/stage6-status.md). Remote CI and consensus review remain
-required; real-cluster Docker/UI integration remains pending. Foundation/interface
+required. Reliability limits, metrics and live UI/Compose integration now have
+implementation and acceptance tests; see [Stages 7–8](docs/stage7-8-status.md). Foundation/interface
 review and the required Raft reviews remain open.
 
 See [Stage 3 plan](docs/stage3-plan.md) and [verification and limitations](docs/stage3-status.md).
@@ -311,14 +312,15 @@ make demo
 
 ## 🐳 Docker Cluster
 
-Compose is currently **scaffold-only**: it does not pass `--cluster-config` and
-its HTTP routes return 501. Starting profile node4/node5 does not join a Raft
-cluster. Migration to durable volumes/configuration and real-operation tests is
-Stage 4.4; dynamic membership is Stage 6. Use the [local durable process
-instructions](docs/stage5-status.md) today.
+Compose now runs durable Raft with separate volumes and an explicit seed
+configuration. Profiles node4/node5 start joining processes; admission and
+promotion still use the membership API. The [Stage 7–8 runbook](docs/stage7-8-status.md)
+contains the real-operation, leader-kill and full-restart acceptance command.
+For the browser console without Docker, run `make demo-cluster` and open
+[localhost](http://127.0.0.1:8080/demo/#cluster).
 
 The scaffold maps HTTP ports 8001–8005 and gRPC ports 9001–9005, with a separate
-named volume per service. Do not present it as a completed distributed demo.
+named volume per service. Container acceptance and release reviews are tracked separately from configuration changes.
 
 ---
 
