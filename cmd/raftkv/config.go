@@ -10,6 +10,7 @@ type config struct {
 	id, peers, dataDir, httpAddr, grpcAddr string
 	clusterConfig                          string
 	demo                                   bool
+	joining                                bool
 	snapshotEntries                        uint64
 }
 
@@ -24,7 +25,8 @@ func parseConfig(args []string) (config, error) {
 	var c config
 	f := flag.NewFlagSet("raftkv", flag.ContinueOnError)
 	f.BoolVar(&c.demo, "demo", false, "enable standalone KV presentation UI at /demo/ (no Raft)")
-	f.Uint64Var(&c.snapshotEntries, "snapshot-entries", 1000, "checkpoint after this many applied entries (0 disables automatic snapshots)")
+	f.BoolVar(&c.joining, "join", false, "join as a learner using a seed configuration that excludes this node")
+	f.Uint64Var(&c.snapshotEntries, "snapshot-entries", 1000, "checkpoint after this many applied entries (0 disables periodic snapshots; membership checkpoints remain)")
 	f.StringVar(&c.clusterConfig, "cluster-config", env("RAFTKV_CLUSTER_CONFIG", ""), "JSON peer configuration; enables durable Raft mode")
 	f.StringVar(&c.id, "node-id", env("RAFTKV_NODE_ID", "node1"), "unique node identity")
 	f.StringVar(&c.peers, "peers", env("RAFTKV_PEERS", ""), "bootstrap peers (reserved; not consumed in Stage 1)")
@@ -42,6 +44,9 @@ func parseConfig(args []string) (config, error) {
 	}
 	if c.demo && c.clusterConfig != "" {
 		return c, errors.New("--demo is standalone; do not combine it with --cluster-config")
+	}
+	if c.joining && c.clusterConfig == "" {
+		return c, errors.New("--join requires --cluster-config")
 	}
 	return c, nil
 }

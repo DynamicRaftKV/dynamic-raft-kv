@@ -31,7 +31,7 @@ Dynamic Raft KV
 
 </div>
 
-## Current implementation status — 27 October 2026
+## Current implementation status — 29 October 2026
 
 The standalone KV engine (Stage 2) and fixed-membership Raft core (Stage 3,
 phases 3.1–3.4) are implemented and tested. Stage 4 connects the core to HTTP,
@@ -39,9 +39,12 @@ gRPC and CLI with real TCP tests for 1, 3, 5 and 7 nodes. The demo remains
 memory-only and single-node. Stage 5.1–5.3 adds a synced WAL, durable process
 startup using `--cluster-config`, snapshots, chunked transfer and log compaction.
 Durable nodes checkpoint every 1000 applied entries by default; configure this
-with `--snapshot-entries` (`0` disables automatic capture). See
+with `--snapshot-entries` (`0` disables periodic capture, not membership checkpoints). See
 [snapshot limits and ordering](docs/adr/0007-snapshots-and-compaction.md).
-Dynamic membership and real-cluster Docker/UI integration remain pending. Foundation/interface
+Stage 6 now implements durable joint consensus, learner join/catch-up, promotion
+and removal, with core and four-process restart tests. See the
+[membership runbook](docs/stage6-status.md). Remote CI and consensus review remain
+required; real-cluster Docker/UI integration remains pending. Foundation/interface
 review and the required Raft reviews remain open.
 
 See [Stage 3 plan](docs/stage3-plan.md) and [verification and limitations](docs/stage3-status.md).

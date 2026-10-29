@@ -11,6 +11,14 @@ the fixed configuration envelope, ordering, retry and size constraints.
 
 ## Established architecture
 
+Stage 6 evolves membership via [ADR-0008](adr/0008-dynamic-membership.md):
+configuration entries, version-2 membership snapshots, an optional
+`ChangeMembership(context.Context, operation, id, peer)` administration method,
+`POST /cluster/promote`, and status fields for joint consensus/finalization.
+Join/remove are live on durable nodes. Existing RaftNode and protobuf interfaces
+remain compatible. Earlier fixed-membership descriptions below are superseded
+by ADR-0008 for dynamic nodes; the interface review remains required.
+
 - state owns StateMachine; it has no Raft/network/API/membership dependencies.
 - raft owns Transport and consumes storage/state contracts.
 - transport implements the raft-owned adapter and owns generated-wire mapping.

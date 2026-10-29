@@ -29,6 +29,9 @@ func (n *Node) AppendEntries(ctx context.Context, r AppendEntriesRequest) (Appen
 		return resp(false, err)
 	}
 	n.resetElectionLocked()
+	if n.c.Joining && n.snapshot == nil {
+		return resp(false, nil)
+	}
 	if r.PrevLogIndex < n.baseLocked() || r.PrevLogIndex > n.lastLocked() || n.entryLocked(r.PrevLogIndex).Term != r.PrevLogTerm {
 		return resp(false, nil)
 	}
@@ -40,7 +43,7 @@ func (n *Node) AppendEntries(ctx context.Context, r AppendEntriesRequest) (Appen
 		if e.Index != r.PrevLogIndex+uint64(i)+1 || e.Term == 0 || e.Term < prev || e.Term > r.Term {
 			return resp(false, errors.New("raft: invalid append batch"))
 		}
-		if e.Kind != storage.EntryCommand && e.Kind != storage.EntryNoop {
+		if e.Kind != storage.EntryCommand && e.Kind != storage.EntryNoop && e.Kind != storage.EntryConfiguration {
 			return resp(false, ErrUnsupported)
 		}
 		prev = e.Term
@@ -72,7 +75,7 @@ func (n *Node) AppendEntries(ctx context.Context, r AppendEntriesRequest) (Appen
 
 func (n *Node) replicate(ctx context.Context) {
 	var wg sync.WaitGroup
-	for _, p := range n.c.Peers {
+	for _, p := range n.peerList() {
 		if p.ID == n.c.ID {
 			continue
 		}
@@ -142,13 +145,7 @@ func (n *Node) advanceLocked() {
 		if n.entryLocked(i).Term != n.hard.Term {
 			continue
 		}
-		votes := 0
-		for id, p := range n.peers {
-			if !p.Learner && n.match[id] >= i {
-				votes++
-			}
-		}
-		if votes >= n.quorumLocked() {
+		if n.hasQuorumLocked(func(id string) bool { return n.match[id] >= i }) {
 			n.commit = i
 			n.applyLocked()
 			return
@@ -156,12 +153,16 @@ func (n *Node) advanceLocked() {
 	}
 }
 func (n *Node) applyLocked() error {
+	checkpoint := false
 	for n.applied < n.commit {
 		e := n.entryLocked(n.applied + 1)
 		var data []byte
 		var err error
 		if e.Kind == storage.EntryCommand {
 			data, err = n.c.StateMachine.Apply(append([]byte(nil), e.Data...))
+		} else if e.Kind == storage.EntryConfiguration {
+			n.appliedMembers, err = reduceMembership(n.appliedMembers, e.Data)
+			checkpoint = true
 		}
 		if err != nil && !errors.Is(err, state.ErrInvalidCommand) {
 			return n.haltLocked(fmt.Errorf("raft apply: %w", err))
@@ -172,10 +173,31 @@ func (n *Node) applyLocked() error {
 			delete(n.pending, e.Index)
 		}
 	}
-	if n.c.SnapshotEntries > 0 && n.applied-n.baseLocked() >= n.c.SnapshotEntries {
-		return n.takeSnapshotLocked()
+	// Fresh joiners need a snapshot containing their admission, including when
+	// a different leader takes over before the first transfer succeeds.
+	if n.role == Leader {
+		for _, p := range n.members.Current {
+			if p.Learner && n.match[p.ID] == 0 {
+				checkpoint = true
+			}
+		}
 	}
-	return nil
+	if checkpoint || (n.c.SnapshotEntries > 0 && n.applied-n.baseLocked() >= n.c.SnapshotEntries) {
+		if err := n.takeSnapshotLocked(); err != nil {
+			return err
+		}
+		if n.role == Leader {
+			for _, p := range n.members.Current {
+				if p.Learner && n.match[p.ID] == 0 {
+					n.next[p.ID] = n.baseLocked()
+				}
+			}
+		}
+	}
+	if n.role == Leader && !n.voter(n.c.ID) && n.configIndex <= n.applied {
+		return n.followLocked(n.hard.Term, "")
+	}
+	return n.finalizeMembershipLocked()
 }
 
 func (n *Node) Propose(ctx context.Context, data []byte) ([]byte, error) {
@@ -221,8 +243,4 @@ func (n *Node) Propose(ctx context.Context, data []byte) ([]byte, error) {
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
-}
-
-func (n *Node) JoinCluster(context.Context, JoinClusterRequest) (JoinClusterResponse, error) {
-	return JoinClusterResponse{LeaderHTTPAddress: n.Status().LeaderHTTPAddress}, ErrUnsupported
 }

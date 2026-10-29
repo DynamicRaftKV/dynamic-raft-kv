@@ -15,7 +15,7 @@ import (
 
 // NewRaftHandler serves KV operations through consensus, including GET. Reads
 // therefore require a leader and quorum; there is no stale local-read fallback.
-// Membership endpoints remain explicit stubs until durable config changes exist.
+// Membership operations use serialized durable configuration entries.
 func NewRaftHandler(node raft.RaftNode) http.Handler {
 	mux := http.NewServeMux()
 	operate := func(w http.ResponseWriter, r *http.Request) {
@@ -88,7 +88,8 @@ func NewRaftHandler(node raft.RaftNode) http.Handler {
 		w.Header().Set("Cache-Control", "no-store")
 		_ = json.NewEncoder(w).Encode(node.Status())
 	})
-	mux.HandleFunc("POST /cluster/join", join)
-	mux.HandleFunc("POST /cluster/remove", remove)
+	mux.HandleFunc("POST /cluster/join", membershipHandler(node, "add_learner"))
+	mux.HandleFunc("POST /cluster/promote", membershipHandler(node, "promote"))
+	mux.HandleFunc("POST /cluster/remove", membershipHandler(node, "remove"))
 	return mux
 }

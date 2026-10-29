@@ -33,7 +33,7 @@ func run(args []string, out io.Writer) error {
 	var payload any
 	args = f.Args()
 	if len(args) == 0 {
-		return errors.New("usage: raftctl [flags] status | put KEY VALUE | get KEY | delete KEY | join ID GRPC_ADDRESS HTTP_ADDRESS | remove ID")
+		return errors.New("usage: raftctl [flags] status | put KEY VALUE | get KEY | delete KEY | join ID GRPC_ADDRESS HTTP_ADDRESS | promote ID | remove ID")
 	}
 	switch args[0] {
 	case "put", "get", "delete":
@@ -61,11 +61,11 @@ func run(args []string, out io.Writer) error {
 		}
 		method, path = http.MethodPost, "/cluster/join"
 		payload = api.JoinRequest{ID: args[1], GRPCAddress: args[2], HTTPAddress: args[3]}
-	case "remove":
+	case "remove", "promote":
 		if len(args) != 2 {
-			return errors.New("usage: raftctl [flags] remove ID")
+			return errors.New("usage: raftctl [flags] remove ID | promote ID")
 		}
-		method, path = http.MethodPost, "/cluster/remove"
+		method, path = http.MethodPost, "/cluster/"+args[0]
 		payload = api.RemoveRequest{ID: args[1]}
 	default:
 		return fmt.Errorf("unknown command %q", args[0])

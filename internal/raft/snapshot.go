@@ -60,7 +60,16 @@ func (n *Node) takeSnapshotLocked() error {
 	if len(data) > storage.MaxSnapshotBytes {
 		return n.haltLocked(errors.New("raft: snapshot exceeds 32 MiB limit"))
 	}
-	s := storage.Snapshot{LastIncludedIndex: n.applied, LastIncludedTerm: n.entryLocked(n.applied).Term, Configuration: configuration(n.c.Peers), Data: data}
+	config, err := encodeMembership(n.appliedMembers)
+	if err != nil {
+		return n.haltLocked(err)
+	}
+	// Keep unchanged Stage 5 snapshots byte-compatible.
+	legacy, _ := encodeMembership(stableMembership(n.c.Peers))
+	if bytes.Equal(config, legacy) {
+		config = configuration(n.c.Peers)
+	}
+	s := storage.Snapshot{LastIncludedIndex: n.applied, LastIncludedTerm: n.entryLocked(n.applied).Term, Configuration: config, Data: data}
 	if err = n.c.Storage.InstallSnapshot(s, true); err != nil {
 		return n.haltLocked(err)
 	}
@@ -77,6 +86,17 @@ func (n *Node) publishSnapshotLocked(s storage.Snapshot, retain bool) {
 	}
 	n.log = append([]storage.Entry{{Index: s.LastIncludedIndex, Term: s.LastIncludedTerm}}, suffix...)
 	n.snapshot = copySnapshot(&s)
+	n.baseMembers, _ = snapshotMembership(s.Configuration, n.c.Peers)
+	n.appliedMembers = n.baseMembers.clone()
+	members, index, err := replayMembership(n.baseMembers, suffix)
+	if err != nil {
+		n.haltLocked(err)
+		return
+	}
+	if index == 0 {
+		index = s.LastIncludedIndex
+	}
+	n.setMembershipLocked(members, index)
 }
 
 // InstallSnapshot accepts ordered, bounded chunks. An interrupted transfer is
@@ -93,15 +113,29 @@ func (n *Node) InstallSnapshot(ctx context.Context, r InstallSnapshotRequest) (I
 	if n.err != nil {
 		return resp(false, 0, n.err)
 	}
-	if r.Term == 0 || r.Term < n.hard.Term || !n.voter(r.LeaderID) {
+	if r.Term == 0 || r.Term < n.hard.Term {
 		return resp(false, 0, nil)
+	}
+	// A lagging node may not yet know a newly promoted leader. The snapshot
+	// must identify that leader as a voter. Peer transport is trusted (no TLS
+	// authentication in the MVP); this is not an authorization mechanism.
+	claimed, claimedErr := snapshotMembership(r.Snapshot.Configuration, n.c.Peers)
+	known := false
+	for _, p := range append(append([]Peer(nil), claimed.Current...), claimed.Outgoing...) {
+		if p.ID == r.LeaderID && !p.Learner {
+			known = true
+		}
+	}
+	if claimedErr != nil || !known {
+		return resp(false, 0, errors.New("raft: snapshot leader is not a voter"))
 	}
 	if err := n.followLocked(r.Term, r.LeaderID); err != nil {
 		return resp(false, 0, err)
 	}
 	n.resetElectionLocked()
 	s := r.Snapshot
-	if s.LastIncludedIndex == 0 || s.LastIncludedIndex == ^uint64(0) || s.LastIncludedTerm == 0 || s.LastIncludedTerm > r.Term || len(s.Data) > snapshotChunkBytes || !sameConfiguration(s.Configuration, n.c.Peers) {
+	members, membershipErr := snapshotMembership(s.Configuration, n.c.Peers)
+	if s.LastIncludedIndex == 0 || s.LastIncludedIndex == ^uint64(0) || s.LastIncludedTerm == 0 || s.LastIncludedTerm > r.Term || len(s.Data) > snapshotChunkBytes || membershipErr != nil {
 		return resp(false, 0, errors.New("raft: invalid snapshot metadata or chunk"))
 	}
 	if r.Offset > storage.MaxSnapshotBytes || uint64(len(s.Data)) > storage.MaxSnapshotBytes-r.Offset {
@@ -127,6 +161,11 @@ func (n *Node) InstallSnapshot(ctx context.Context, r InstallSnapshotRequest) (I
 	s = t.snapshot
 	n.incoming = nil
 	retain := s.LastIncludedIndex <= n.lastLocked() && n.entryLocked(s.LastIncludedIndex).Term == s.LastIncludedTerm
+	if retain {
+		if _, _, err := replayMembership(members, n.log[s.LastIncludedIndex-n.baseLocked()+1:]); err != nil {
+			return resp(false, 0, err)
+		}
+	}
 	// Restore validates atomically. A subsequent persistence failure halts the
 	// node before acknowledgement; restart recovers only the durable generation.
 	if err := n.c.StateMachine.Restore(s.Data); err != nil {

@@ -54,7 +54,7 @@ func serve(ctx context.Context, c config) error {
 	var node *raft.Node
 	adapter := &transport.Server{}
 	if c.clusterConfig != "" {
-		peers, err := readPeers(c.clusterConfig, c.id)
+		peers, err := readSeedPeers(c.clusterConfig, c.id, c.joining)
 		if err != nil {
 			return err
 		}
@@ -76,7 +76,7 @@ func serve(ctx context.Context, c config) error {
 		}
 		client := &transport.Client{}
 		defer client.Close()
-		node, err = raft.NewNode(raft.Config{ID: c.id, Peers: peers, Storage: disk, StateMachine: state.NewStore(), Transport: client, SnapshotEntries: c.snapshotEntries})
+		node, err = raft.NewNode(raft.Config{ID: c.id, Peers: peers, Storage: disk, StateMachine: state.NewStore(), Transport: client, SnapshotEntries: c.snapshotEntries, Joining: c.joining})
 		if err != nil {
 			return err
 		}
