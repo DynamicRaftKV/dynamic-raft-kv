@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -16,6 +17,24 @@ import (
 	"github.com/DynamicRaftKV/dynamic-raft-kv/proto/raftkvpb"
 	"google.golang.org/grpc"
 )
+
+// Force one lost command replication to the only available follower. The
+// leader must retry via its clock even while the caller waits for Propose.
+type dropFirstCommand struct {
+	raft.Transport
+	dropped atomic.Bool
+}
+
+func (d *dropFirstCommand) SendAppendEntries(ctx context.Context, peer raft.Peer, r raft.AppendEntriesRequest) (raft.AppendEntriesResponse, error) {
+	if peer.ID == "1" {
+		for _, e := range r.Entries {
+			if e.Kind == storage.EntryCommand && d.dropped.CompareAndSwap(false, true) {
+				return raft.AppendEntriesResponse{}, context.DeadlineExceeded
+			}
+		}
+	}
+	return d.Transport.SendAppendEntries(ctx, peer, r)
+}
 
 func TestSnapshotCatchupOverTCPWithWAL(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -35,6 +54,7 @@ func TestSnapshotCatchupOverTCPWithWAL(t *testing.T) {
 	stores := make([]*state.Store, 3)
 	servers := make([]*grpc.Server, 3)
 	disks := make([]*storage.WAL, 3)
+	var leaderTransport *dropFirstCommand
 	for i := range nodes {
 		d, err := storage.OpenWAL(t.TempDir())
 		if err != nil {
@@ -45,7 +65,12 @@ func TestSnapshotCatchupOverTCPWithWAL(t *testing.T) {
 		client := &transport.Client{}
 		defer client.Close()
 		stores[i] = state.NewStore()
-		n, err := raft.NewNode(raft.Config{ID: peers[i].ID, Peers: peers, Storage: d, StateMachine: stores[i], Transport: client, RPCTimeout: 100 * time.Millisecond})
+		var wire raft.Transport = client
+		if i == 0 {
+			leaderTransport = &dropFirstCommand{Transport: client}
+			wire = leaderTransport
+		}
+		n, err := raft.NewNode(raft.Config{ID: peers[i].ID, Peers: peers, Storage: d, StateMachine: stores[i], Transport: wire, RPCTimeout: 100 * time.Millisecond, TickInterval: 10 * time.Millisecond})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -61,6 +86,13 @@ func TestSnapshotCatchupOverTCPWithWAL(t *testing.T) {
 	if err := nodes[0].Campaign(ctx); err != nil {
 		t.Fatal(err)
 	}
+	// A real node keeps heartbeating during proposals. Drive the leader's
+	// production clock throughout the test, including the initial large writes.
+	// Followers use RPCs only here so elections do not obscure snapshot catch-up.
+	runCtx, stopClock := context.WithCancel(ctx)
+	clockDone := make(chan struct{})
+	go func() { defer close(clockDone); _ = nodes[0].Run(runCtx) }()
+	defer func() { stopClock(); <-clockDone }()
 	// Total snapshot exceeds the normal 4 MiB unary receive limit.
 	for i := 0; i < 6; i++ {
 		command := []byte(fmt.Sprintf(`{"op":"PUT","key":"large%d","value":"%s"}`, i, strings.Repeat("x", 800000)))
@@ -77,9 +109,6 @@ func TestSnapshotCatchupOverTCPWithWAL(t *testing.T) {
 	}
 	want, _ := stores[0].Snapshot()
 	for {
-		if err := nodes[0].Tick(ctx); err != nil {
-			t.Fatal(err)
-		}
 		got, _ := stores[2].Snapshot()
 		if bytes.Equal(got, want) {
 			break
@@ -93,5 +122,8 @@ func TestSnapshotCatchupOverTCPWithWAL(t *testing.T) {
 	r, err := disks[2].Recover()
 	if err != nil || r.Snapshot == nil || len(r.Snapshot.Data) < 4<<20 {
 		t.Fatal("no large durable snapshot", err)
+	}
+	if !leaderTransport.dropped.Load() {
+		t.Fatal("lost-replication regression was not exercised")
 	}
 }
