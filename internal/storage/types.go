@@ -26,7 +26,8 @@ type HardState struct {
 }
 
 // Snapshot wraps the KV payload; Configuration is Raft/membership-owned.
-// Its encoding and configuration-change algorithm require SDD confirmation.
+// Fixed configuration currently uses canonical version-1 JSON (ADR-0007).
+// Live configuration changes require the Stage 6 algorithm.
 type Snapshot struct {
 	LastIncludedIndex uint64
 	LastIncludedTerm  uint64

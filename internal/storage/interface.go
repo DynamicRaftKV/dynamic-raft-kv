@@ -1,6 +1,6 @@
 package storage
 
-// Storage is a DRAFT synchronous durability contract, not an implementation.
+// Storage is a synchronous durability contract (system-wide freeze pending).
 // Success means the operation survives a process crash. Calls are serialized
 // by the owner; no concurrent-use guarantee is required. Input buffers may be
 // reused after return and recovery results are caller-owned.

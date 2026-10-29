@@ -1,3 +1,3 @@
-// Package api exposes the HTTP/JSON client surface. Handlers remain
-// unimplemented until the later integration stages.
+// Package api exposes the HTTP/JSON client surface. NewRaftHandler sends every
+// KV operation through consensus; NewHandler retains the unbound scaffold.
 package api

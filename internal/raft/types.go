@@ -52,9 +52,11 @@ type RequestVoteResponse struct {
 	VoteGranted bool
 }
 
-// InstallSnapshotRequest is a DRAFT chunked transfer. Offset zero starts a
+// InstallSnapshotRequest is a chunked transfer. Offset zero starts a
 // transfer identified by leader, term, and included index/term. Done marks the
 // final chunk. Snapshot.Data holds this chunk, not the complete payload.
+// Chunks are ordered and at most 256 KiB; assembly is at most 32 MiB.
+// Transfers retry from zero; only the final acknowledgement is durable.
 type InstallSnapshotRequest struct {
 	Term     uint64
 	LeaderID string

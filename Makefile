@@ -1,10 +1,10 @@
 GO ?= go
 
-.PHONY: build test vet race fmt generate check-generated lint check-state-imports demo
+.PHONY: build test vet race fmt generate check-generated lint check-state-imports check-raft-imports demo
 build:
 	$(GO) build -o bin/raftkv ./cmd/raftkv
 	$(GO) build -o bin/raftctl ./cmd/raftctl
-test: check-state-imports
+test: check-state-imports check-raft-imports
 	$(GO) test ./...
 vet:
 	$(GO) vet ./...
@@ -21,5 +21,7 @@ lint:
 	golangci-lint run
 check-state-imports:
 	GO=$(GO) sh scripts/check-state-imports.sh
+check-raft-imports:
+	GO=$(GO) sh scripts/check-raft-imports.sh
 demo:
 	$(GO) run ./cmd/raftkv --demo --http-addr 127.0.0.1:8080 --grpc-addr 127.0.0.1:9090

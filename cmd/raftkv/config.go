@@ -8,7 +8,9 @@ import (
 
 type config struct {
 	id, peers, dataDir, httpAddr, grpcAddr string
+	clusterConfig                          string
 	demo                                   bool
+	snapshotEntries                        uint64
 }
 
 func env(key, fallback string) string {
@@ -22,9 +24,11 @@ func parseConfig(args []string) (config, error) {
 	var c config
 	f := flag.NewFlagSet("raftkv", flag.ContinueOnError)
 	f.BoolVar(&c.demo, "demo", false, "enable standalone KV presentation UI at /demo/ (no Raft)")
+	f.Uint64Var(&c.snapshotEntries, "snapshot-entries", 1000, "checkpoint after this many applied entries (0 disables automatic snapshots)")
+	f.StringVar(&c.clusterConfig, "cluster-config", env("RAFTKV_CLUSTER_CONFIG", ""), "JSON peer configuration; enables durable Raft mode")
 	f.StringVar(&c.id, "node-id", env("RAFTKV_NODE_ID", "node1"), "unique node identity")
 	f.StringVar(&c.peers, "peers", env("RAFTKV_PEERS", ""), "bootstrap peers (reserved; not consumed in Stage 1)")
-	f.StringVar(&c.dataDir, "data-dir", env("RAFTKV_DATA_DIR", "./data"), "data directory (reserved; no file I/O)")
+	f.StringVar(&c.dataDir, "data-dir", env("RAFTKV_DATA_DIR", "./data"), "exclusive node data directory in durable Raft mode")
 	f.StringVar(&c.httpAddr, "http-addr", env("RAFTKV_HTTP_ADDR", ":8001"), "HTTP listen address")
 	f.StringVar(&c.grpcAddr, "grpc-addr", env("RAFTKV_GRPC_ADDR", ":9001"), "gRPC listen address")
 	if err := f.Parse(args); err != nil {
@@ -35,6 +39,9 @@ func parseConfig(args []string) (config, error) {
 	}
 	if c.id == "" || c.dataDir == "" || c.httpAddr == "" || c.grpcAddr == "" {
 		return c, errors.New("node-id, data-dir and listen addresses must be nonempty")
+	}
+	if c.demo && c.clusterConfig != "" {
+		return c, errors.New("--demo is standalone; do not combine it with --cluster-config")
 	}
 	return c, nil
 }

@@ -1,3 +1,4 @@
 // Package transport adapts the raft-owned transport contract to gRPC.
-// Stage 1 contains only explicitly unimplemented network adapters.
+// Adapters preserve core request/response semantics and propagate cancellation.
+// Snapshot and membership support depends on the attached core implementation.
 package transport
