@@ -2,6 +2,11 @@
 
 ## Implementation update — 29 October 2026
 
+Stage 6.1–6.4 now has local implementation and tests for durable membership,
+learner admission/catch-up, joint-consensus promotion/removal and process restart.
+See [Stage 6 runbook](../stage6-status.md). Consensus review and remote CI remain
+separate acceptance gates; Stage 7, Compose and cluster UI work remain.
+
 Local work now includes Stage 3.1–3.4, Stage 4's network/API/CLI code, and
 Stage 5.1–5.3 WAL, durable startup, snapshot transfer/recovery and compaction.
 Tests include >4 MiB gRPC snapshot catch-up, checkpoint crash boundaries,

@@ -45,16 +45,16 @@ func (n *Node) startCampaignLocked() RequestVoteRequest {
 	n.incoming = nil
 	last := n.entryLocked(n.lastLocked())
 	req := RequestVoteRequest{Term: n.hard.Term, CandidateID: n.c.ID, LastLogIndex: last.Index, LastLogTerm: last.Term}
-	if n.quorumLocked() == 1 {
+	if n.hasQuorumLocked(func(id string) bool { return id == n.c.ID }) {
 		n.leadLocked()
 	}
 	return req
 }
 
 func (n *Node) sendVotes(ctx context.Context, req RequestVoteRequest) {
-	votes := 1 // accessed only with n.mu held
+	votes := map[string]bool{n.c.ID: true} // accessed only with n.mu held
 	var wg sync.WaitGroup
-	for _, p := range n.c.Peers {
+	for _, p := range n.peerList() {
 		if p.ID == n.c.ID || p.Learner {
 			continue
 		}
@@ -76,8 +76,8 @@ func (n *Node) sendVotes(ctx context.Context, req RequestVoteRequest) {
 			if n.role != Candidate || n.hard.Term != req.Term || r.Term != req.Term || !r.VoteGranted {
 				return
 			}
-			votes++
-			if votes >= n.quorumLocked() {
+			votes[p.ID] = true
+			if n.hasQuorumLocked(func(id string) bool { return votes[id] }) {
 				n.leadLocked()
 			}
 		}(p)

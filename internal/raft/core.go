@@ -15,14 +15,15 @@ import (
 var (
 	ErrStopped          = errors.New("raft: stopped")
 	ErrNotLeader        = errors.New("raft: not leader; proposal outcome may be unknown")
-	ErrUnsupported      = errors.New("raft: membership changes are not implemented")
+	ErrUnsupported      = errors.New("raft: unsupported operation")
 	ErrProposalTooLarge = errors.New("raft: encoded command exceeds 1 MiB")
 )
 
 // MaxCommandBytes bounds one encoded proposal for the unary gRPC transport.
 const MaxCommandBytes = 1 << 20
 
-// Config describes one node in an identical, fixed configuration on every peer.
+// Config describes one node and its immutable bootstrap/seed configuration.
+// Durable membership entries and snapshots override the seed after startup.
 // StateMachine must be fresh: recovery restores a snapshot and replays the
 // suffix only after commitment is known. Storage must honor durability.
 type Config struct {
@@ -36,8 +37,10 @@ type Config struct {
 	// Seed makes logical-tick tests reproducible. Zero chooses a random seed.
 	Seed int64
 	// SnapshotEntries triggers a checkpoint after this many applied entries.
-	// Zero disables automatic snapshots; TakeSnapshot remains available.
+	// Zero disables periodic snapshots; membership checkpoints remain required.
 	SnapshotEntries uint64
+	// Joining starts without voting and requires a snapshot from a seed voter.
+	Joining bool
 }
 
 type proposalResult struct {
@@ -48,25 +51,27 @@ type proposalResult struct {
 // Node serializes transitions, persistence and application. It never calls the
 // transport while holding mu. Callbacks from storage/application must not reenter.
 type Node struct {
-	mu                           sync.Mutex
-	c                            Config
-	peers                        map[string]Peer
-	rng                          *rand.Rand
-	hard                         storage.HardState
-	log                          []storage.Entry // slot zero is the snapshot boundary sentinel
-	snapshot                     *storage.Snapshot
-	incoming                     *snapshotTransfer
-	role                         Role
-	leader                       string
-	commit, applied              uint64
-	elapsed, deadline, heartbeat int
-	next, match                  map[string]uint64
-	inflight                     map[string]bool
-	pending                      map[uint64]chan proposalResult
-	err                          error
-	running                      bool
-	life                         context.Context
-	cancel                       context.CancelFunc
+	mu                                   sync.Mutex
+	c                                    Config
+	peers                                map[string]Peer
+	members, baseMembers, appliedMembers membershipConfig
+	configIndex                          uint64
+	rng                                  *rand.Rand
+	hard                                 storage.HardState
+	log                                  []storage.Entry // slot zero is the snapshot boundary sentinel
+	snapshot                             *storage.Snapshot
+	incoming                             *snapshotTransfer
+	role                                 Role
+	leader                               string
+	commit, applied                      uint64
+	elapsed, deadline, heartbeat         int
+	next, match                          map[string]uint64
+	inflight                             map[string]bool
+	pending                              map[uint64]chan proposalResult
+	err                                  error
+	running                              bool
+	life                                 context.Context
+	cancel                               context.CancelFunc
 }
 
 var _ RaftNode = (*Node)(nil)
@@ -109,23 +114,34 @@ func NewNode(c Config) (*Node, error) {
 			voters++
 		}
 	}
-	if _, ok := peers[c.ID]; !ok || voters == 0 {
+	if _, ok := peers[c.ID]; (!ok && !c.Joining) || voters == 0 {
 		return nil, errors.New("raft: self and at least one voter required")
+	}
+	if _, ok := peers[c.ID]; ok && c.Joining {
+		return nil, errors.New("raft: joining node must be absent from seed configuration")
 	}
 	r, err := c.Storage.Recover()
 	if err != nil {
 		return nil, fmt.Errorf("raft recover: %w", err)
 	}
 	base, lastTerm := uint64(0), uint64(0)
+	baseMembers := stableMembership(c.Peers)
+	if err := baseMembers.validate(); err != nil {
+		return nil, err
+	}
 	if r.Snapshot != nil {
+		baseMembers, err = snapshotMembership(r.Snapshot.Configuration, c.Peers)
+		if err != nil {
+			return nil, fmt.Errorf("raft snapshot membership: %w", err)
+		}
 		base, lastTerm = r.Snapshot.LastIncludedIndex, r.Snapshot.LastIncludedTerm
-		if base == 0 || base == ^uint64(0) || lastTerm == 0 || lastTerm > r.HardState.Term || len(r.Snapshot.Data) > storage.MaxSnapshotBytes || !sameConfiguration(r.Snapshot.Configuration, c.Peers) {
+		if base == 0 || base == ^uint64(0) || lastTerm == 0 || lastTerm > r.HardState.Term || len(r.Snapshot.Data) > storage.MaxSnapshotBytes {
 			return nil, errors.New("raft: invalid recovered snapshot")
 		}
 	}
 	if r.HardState.VotedFor != "" {
-		p, ok := peers[r.HardState.VotedFor]
-		if !ok || p.Learner || r.HardState.Term == 0 {
+		// A vote may name a voter removed later in the same durable history.
+		if r.HardState.Term == 0 {
 			return nil, errors.New("raft: invalid recovered vote")
 		}
 	}
@@ -136,10 +152,17 @@ func NewNode(c Config) (*Node, error) {
 		if e.Index != base+uint64(i+1) || e.Term == 0 || e.Term < lastTerm || e.Term > r.HardState.Term {
 			return nil, errors.New("raft: invalid recovered log")
 		}
-		if e.Kind != storage.EntryCommand && e.Kind != storage.EntryNoop {
+		if e.Kind != storage.EntryCommand && e.Kind != storage.EntryNoop && e.Kind != storage.EntryConfiguration {
 			return nil, ErrUnsupported
 		}
 		lastTerm = e.Term
+	}
+	members, configIndex, err := replayMembership(baseMembers, r.Entries)
+	if err != nil {
+		return nil, fmt.Errorf("raft membership recovery: %w", err)
+	}
+	if configIndex == 0 {
+		configIndex = base
 	}
 	if r.Snapshot != nil {
 		if err := c.StateMachine.Restore(r.Snapshot.Data); err != nil {
@@ -156,6 +179,8 @@ func NewNode(c Config) (*Node, error) {
 		n.log[0] = storage.Entry{Index: base, Term: r.Snapshot.LastIncludedTerm}
 		n.commit, n.applied = base, base
 	}
+	n.baseMembers, n.appliedMembers = baseMembers.clone(), baseMembers.clone()
+	n.setMembershipLocked(members, configIndex)
 	n.resetElectionLocked()
 	return n, nil
 }
@@ -213,27 +238,40 @@ func (n *Node) appendLocked(es []storage.Entry) error {
 	if len(es) == 0 {
 		return nil
 	}
+	var members membershipConfig
+	var index uint64
+	var err error
+	if es[0].Index == n.lastLocked()+1 {
+		members, index, err = replayMembership(n.members, es)
+		if index == 0 {
+			index = n.configIndex
+		}
+	} else {
+		candidate := append(append([]storage.Entry(nil), n.log[1:es[0].Index-n.baseLocked()]...), es...)
+		members, index, err = replayMembership(n.baseMembers, candidate)
+		if index == 0 {
+			index = n.baseLocked()
+		}
+	}
+	if err != nil {
+		return err
+	}
 	if err := n.c.Storage.Append(copyEntries(es)); err != nil {
 		return n.haltLocked(fmt.Errorf("raft append: %w", err))
 	}
 	n.log = append(n.log[:es[0].Index-n.baseLocked()], copyEntries(es)...)
+	n.setMembershipLocked(members, index)
 	return nil
 }
-func (n *Node) quorumLocked() int {
-	count := 0
-	for _, p := range n.peers {
-		if !p.Learner {
-			count++
-		}
-	}
-	return count/2 + 1
+func (n *Node) hasQuorumLocked(yes func(string) bool) bool {
+	return n.members.hasQuorum(yes)
 }
 func (n *Node) voter(id string) bool { p, ok := n.peers[id]; return ok && !p.Learner }
 
 func (n *Node) Status() NodeStatus {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	return NodeStatus{ID: n.c.ID, Role: n.role, Term: n.hard.Term, LeaderID: n.leader, LeaderHTTPAddress: n.peers[n.leader].HTTPAddress, CommitIndex: n.commit, LastApplied: n.applied, Peers: append([]Peer(nil), n.c.Peers...)}
+	return NodeStatus{ID: n.c.ID, Role: n.role, Term: n.hard.Term, LeaderID: n.leader, LeaderHTTPAddress: n.peers[n.leader].HTTPAddress, CommitIndex: n.commit, LastApplied: n.applied, Peers: append([]Peer(nil), n.members.Current...), OutgoingVoters: append([]Peer(nil), n.members.Outgoing...), ConfigurationIndex: n.configIndex, MembershipPending: n.configIndex > n.applied || len(n.members.Outgoing) > 0}
 }
 func (n *Node) IsLeader() bool {
 	n.mu.Lock()

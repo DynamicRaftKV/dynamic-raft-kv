@@ -24,7 +24,9 @@ type bootstrapIdentity struct {
 	Peers   []raft.Peer `json:"peers"`
 }
 
-func readPeers(path, id string) ([]raft.Peer, error) {
+func readPeers(path, id string) ([]raft.Peer, error) { return readSeedPeers(path, id, false) }
+
+func readSeedPeers(path, id string, joining bool) ([]raft.Peer, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -62,7 +64,7 @@ func readPeers(path, id string) ([]raft.Peer, error) {
 			voters++
 		}
 	}
-	if !seen[id] || voters == 0 {
+	if (!seen[id] && !joining) || voters == 0 || (joining && seen[id]) {
 		return nil, errors.New("cluster must include this node and at least one voter")
 	}
 	sort.Slice(config.Peers, func(i, j int) bool { return config.Peers[i].ID < config.Peers[j].ID })
@@ -80,7 +82,7 @@ func bindBootstrap(dir, id string, peers []raft.Peer) error {
 	existing, err := os.ReadFile(path)
 	if err == nil {
 		if !bytes.Equal(existing, data) {
-			return errors.New("bootstrap identity/configuration differs from persisted configuration; dynamic changes are not implemented")
+			return errors.New("bootstrap identity/configuration differs from persisted seed file; use membership endpoints for live changes")
 		}
 		return nil
 	}

@@ -612,7 +612,7 @@ func TestUnsupportedOperationsAndOwnership(t *testing.T) {
 	if r, err := n.InstallSnapshot(context.Background(), InstallSnapshotRequest{}); err != nil || r.Accepted {
 		t.Fatal("accepted invalid snapshot", r, err)
 	}
-	if _, err := n.JoinCluster(context.Background(), JoinClusterRequest{}); !errors.Is(err, ErrUnsupported) {
+	if _, err := n.JoinCluster(context.Background(), JoinClusterRequest{}); !errors.Is(err, ErrNotLeader) {
 		t.Fatal(err)
 	}
 	s := n.Status()

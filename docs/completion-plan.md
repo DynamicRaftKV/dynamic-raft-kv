@@ -15,7 +15,7 @@ extensions remain separate from the MVP.
 | 3 Raft core | Four phases implemented and tested | Required Raft reviews and broader system-level validation |
 | 4 Network/client integration | gRPC, HTTP, CLI and durable startup implemented | Phase 4.4 Docker Compose deployment and acceptance through published ports; failure/restart checks in containers |
 | 5 Durability/recovery | 5.1–5.3 implemented; 5.4 defined recovery fault matrix tested | Required Raft review and remote CI acceptance; broader reliability in Stage 7 |
-| 6 Dynamic membership | Not implemented | 6.1 durable configuration-change algorithm/entries; 6.2 joining; 6.3 learner catch-up/promotion; 6.4 membership/removal safety and restart tests |
+| 6 Dynamic membership | 6.1–6.4 implemented locally: durable joint consensus, join, catch-up, promotion/removal and recovery tests | Consensus review, remote CI and acceptance; see [Stage 6](stage6-status.md) |
 | 7 Reliability/observability | Initial core, TCP and process failure tests exist | 7.1 broader fault injection; 7.2 failure combinations; 7.3 invariant/property checks; 7.4 structured logging, metrics and diagnostics |
 | 8 Integration/evaluation | Standalone presentation UI exists | 8.1 connect UI to the real cluster and reproducible full demo; 8.2 accurate user/operator docs; 8.3 evaluation/benchmarks/report/deck; 8.4 release/review close-out |
 | 9 Stretch | Not started | Optional post-MVP items only; not a prerequisite for required project completion |
@@ -40,6 +40,6 @@ and UI/documentation belong to Stage 8. Docker is deferred at the owner's reques
 not omitted from project completion. Separate local processes already exercise
 real HTTP/gRPC and disk persistence without Docker.
 
-N nodes currently means a configurable, fixed peer set. Live changes to N are
-Stage 6. Do not add/remove voters by editing the bootstrap JSON of a running or
-previously initialized cluster.
+Live changes to N use Stage 6's join/promote/remove endpoints. Do not add/remove
+voters by editing the bootstrap JSON of a running or previously initialized
+cluster. Docker and the standalone presentation UI do not yet expose these flows.

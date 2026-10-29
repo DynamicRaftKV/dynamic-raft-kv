@@ -19,14 +19,17 @@ type Peer struct {
 }
 
 type NodeStatus struct {
-	ID                string `json:"id"`
-	Role              Role   `json:"role"`
-	Term              uint64 `json:"term"`
-	LeaderID          string `json:"leader_id"`
-	LeaderHTTPAddress string `json:"leader_http_address"`
-	CommitIndex       uint64 `json:"commit_index"`
-	LastApplied       uint64 `json:"last_applied"`
-	Peers             []Peer `json:"peers"`
+	OutgoingVoters     []Peer `json:"outgoing_voters,omitempty"`
+	ConfigurationIndex uint64 `json:"configuration_index"`
+	MembershipPending  bool   `json:"membership_pending"`
+	ID                 string `json:"id"`
+	Role               Role   `json:"role"`
+	Term               uint64 `json:"term"`
+	LeaderID           string `json:"leader_id"`
+	LeaderHTTPAddress  string `json:"leader_http_address"`
+	CommitIndex        uint64 `json:"commit_index"`
+	LastApplied        uint64 `json:"last_applied"`
+	Peers              []Peer `json:"peers"`
 }
 
 type AppendEntriesRequest struct {
