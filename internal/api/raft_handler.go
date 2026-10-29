@@ -40,6 +40,9 @@ func NewRaftHandler(node raft.RaftNode) http.Handler {
 		result, err := node.Propose(ctx, data)
 		if err != nil {
 			switch {
+			case errors.Is(err, raft.ErrBusy):
+				w.Header().Set("Retry-After", "1")
+				respondError(w, 429, err.Error())
 			case errors.Is(err, raft.ErrNotLeader):
 				address := node.Status().LeaderHTTPAddress
 				if address != "" {

@@ -25,19 +25,11 @@ jobs:
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.10
           go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
       - run: make check-generated
-      - name: Compose smoke test
+      - name: Durable Compose acceptance
         run: |
           docker compose --profile node4 --profile node5 config --quiet
           docker compose --profile node4 --profile node5 up -d --build
-          for port in 8001 8002 8003 8004 8005; do
-            ready=false
-            for attempt in $(seq 1 30); do
-              code=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:$port/cluster/status" || true)
-              if [ "$code" = 501 ]; then ready=true; break; fi
-              sleep 1
-            done
-            test "$ready" = true
-          done
+          python3 scripts/compose-acceptance.py
       - name: Compose logs and shutdown
         if: always()
         run: |

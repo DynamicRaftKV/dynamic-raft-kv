@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"sync"
 	"time"
@@ -17,6 +18,7 @@ var (
 	ErrNotLeader        = errors.New("raft: not leader; proposal outcome may be unknown")
 	ErrUnsupported      = errors.New("raft: unsupported operation")
 	ErrProposalTooLarge = errors.New("raft: encoded command exceeds 1 MiB")
+	ErrBusy             = errors.New("raft: proposal capacity reached; wait for quorum recovery")
 )
 
 // MaxCommandBytes bounds one encoded proposal for the unary gRPC transport.
@@ -40,7 +42,10 @@ type Config struct {
 	// Zero disables periodic snapshots; membership checkpoints remain required.
 	SnapshotEntries uint64
 	// Joining starts without voting and requires a snapshot from a seed voter.
-	Joining bool
+	Joining                                    bool
+	MaxUncommittedEntries, MaxUncommittedBytes uint64
+	MaxPendingProposals                        int
+	Logger                                     *slog.Logger
 }
 
 type proposalResult struct {
@@ -51,33 +56,46 @@ type proposalResult struct {
 // Node serializes transitions, persistence and application. It never calls the
 // transport while holding mu. Callbacks from storage/application must not reenter.
 type Node struct {
-	mu                                   sync.Mutex
-	c                                    Config
-	peers                                map[string]Peer
-	members, baseMembers, appliedMembers membershipConfig
-	configIndex                          uint64
-	rng                                  *rand.Rand
-	hard                                 storage.HardState
-	log                                  []storage.Entry // slot zero is the snapshot boundary sentinel
-	snapshot                             *storage.Snapshot
-	incoming                             *snapshotTransfer
-	role                                 Role
-	leader                               string
-	commit, applied                      uint64
-	elapsed, deadline, heartbeat         int
-	next, match                          map[string]uint64
-	inflight                             map[string]bool
-	pending                              map[uint64]chan proposalResult
-	err                                  error
-	running                              bool
-	life                                 context.Context
-	cancel                               context.CancelFunc
+	mu                                                   sync.Mutex
+	c                                                    Config
+	peers                                                map[string]Peer
+	members, baseMembers, appliedMembers                 membershipConfig
+	configIndex                                          uint64
+	accepted, rejected, timedOut, elections, leaderships uint64
+	rng                                                  *rand.Rand
+	hard                                                 storage.HardState
+	log                                                  []storage.Entry // slot zero is the snapshot boundary sentinel
+	snapshot                                             *storage.Snapshot
+	incoming                                             *snapshotTransfer
+	role                                                 Role
+	leader                                               string
+	commit, applied                                      uint64
+	elapsed, deadline, heartbeat                         int
+	next, match                                          map[string]uint64
+	inflight                                             map[string]bool
+	pending                                              map[uint64]chan proposalResult
+	err                                                  error
+	running                                              bool
+	life                                                 context.Context
+	cancel                                               context.CancelFunc
 }
 
 var _ RaftNode = (*Node)(nil)
 var _ RPCHandler = (*Node)(nil)
 
 func NewNode(c Config) (*Node, error) {
+	if c.MaxUncommittedEntries == 0 {
+		c.MaxUncommittedEntries = 1024
+	}
+	if c.MaxUncommittedBytes == 0 {
+		c.MaxUncommittedBytes = 16 << 20
+	}
+	if c.MaxPendingProposals == 0 {
+		c.MaxPendingProposals = 1024
+	}
+	if c.MaxPendingProposals < 0 {
+		return nil, errors.New("raft: invalid pending proposal limit")
+	}
 	if c.ID == "" || c.Storage == nil || c.StateMachine == nil || c.Transport == nil {
 		return nil, errors.New("raft: ID, storage, state machine and transport required")
 	}
@@ -182,6 +200,7 @@ func NewNode(c Config) (*Node, error) {
 	n.baseMembers, n.appliedMembers = baseMembers.clone(), baseMembers.clone()
 	n.setMembershipLocked(members, configIndex)
 	n.resetElectionLocked()
+	n.eventLocked("recovered")
 	return n, nil
 }
 
@@ -207,6 +226,7 @@ func (n *Node) failPendingLocked(err error) {
 }
 func (n *Node) haltLocked(err error) error {
 	if n.err == nil {
+		n.eventLocked("stopped", "error", err.Error())
 		n.err = err
 		n.role = Follower
 		n.leader = ""
@@ -223,6 +243,7 @@ func (n *Node) saveLocked(h storage.HardState) error {
 	return nil
 }
 func (n *Node) followLocked(term uint64, leader string) error {
+	changed := n.role != Follower || n.leader != leader || term > n.hard.Term
 	if term > n.hard.Term {
 		n.incoming = nil
 		if err := n.saveLocked(storage.HardState{Term: term}); err != nil {
@@ -231,6 +252,9 @@ func (n *Node) followLocked(term uint64, leader string) error {
 	}
 	n.role = Follower
 	n.leader = leader
+	if changed {
+		n.eventLocked("follower")
+	}
 	n.failPendingLocked(ErrNotLeader)
 	return nil
 }

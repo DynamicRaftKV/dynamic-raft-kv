@@ -14,10 +14,10 @@ extensions remain separate from the MVP.
 | 2 Standalone KV | Implemented and tested | No additional feature work planned; retain regression checks |
 | 3 Raft core | Four phases implemented and tested | Required Raft reviews and broader system-level validation |
 | 4 Network/client integration | gRPC, HTTP, CLI and durable startup implemented | Phase 4.4 Docker Compose deployment and acceptance through published ports; failure/restart checks in containers |
-| 5 Durability/recovery | 5.1–5.3 implemented; 5.4 defined recovery fault matrix tested | Required Raft review and remote CI acceptance; broader reliability in Stage 7 |
+| 5 Durability/recovery | 5.1–5.4 implemented, CI passed and milestone merged | Broader reliability is Stage 7; no deferred Stage 5 feature is implied |
 | 6 Dynamic membership | 6.1–6.4 implemented locally: durable joint consensus, join, catch-up, promotion/removal and recovery tests | Consensus review, remote CI and acceptance; see [Stage 6](stage6-status.md) |
-| 7 Reliability/observability | Initial core, TCP and process failure tests exist | 7.1 broader fault injection; 7.2 failure combinations; 7.3 invariant/property checks; 7.4 structured logging, metrics and diagnostics |
-| 8 Integration/evaluation | Standalone presentation UI exists | 8.1 connect UI to the real cluster and reproducible full demo; 8.2 accurate user/operator docs; 8.3 evaluation/benchmarks/report/deck; 8.4 release/review close-out |
+| 7 Reliability/observability | Fault histories, bounded register checker, admission limits, structured logs and metrics implemented | Consensus review and broader combined-fault acceptance; see [evidence and limits](stage7-8-status.md) |
+| 8 Integration/evaluation | Live cluster UI, runbook, durable Compose acceptance script and benchmark baseline implemented | Container CI acceptance, distributed evaluation/report/deck and release/review close-out |
 | 9 Stretch | Not started | Optional post-MVP items only; not a prerequisite for required project completion |
 
 ## Order of remaining critical work
@@ -30,16 +30,16 @@ extensions remain separate from the MVP.
 4. Complete Docker Compose integration (Stage 4.4), using the working durable
    executable, persistent per-node volumes and reachable advertised addresses.
    Test 3/5/N configurations, leader failure, container restart and full restart.
-   Existing Compose files still launch scaffold mode and are not this deliverable.
+   The durable Compose configuration and CI acceptance script are now implemented.
 5. Connect the frontend to real cluster APIs and status, including accurate
    membership/failure controls only after the backend supports them.
 6. Finish end-to-end acceptance, documentation and evaluation/release materials.
 
 Docker packaging belongs to 4.4; the final reproducible container demonstration
-and UI/documentation belong to Stage 8. Docker is deferred at the owner's request,
-not omitted from project completion. Separate local processes already exercise
+and UI/documentation belong to Stage 8. Docker acceptance is being integrated with the working durable implementation. Separate local processes already exercise
 real HTTP/gRPC and disk persistence without Docker.
 
 Live changes to N use Stage 6's join/promote/remove endpoints. Do not add/remove
 voters by editing the bootstrap JSON of a running or previously initialized
-cluster. Docker and the standalone presentation UI do not yet expose these flows.
+cluster. The Live cluster console exposes membership operations; standalone
+snapshot/restore remains isolated. Compose acceptance now runs real operations.
