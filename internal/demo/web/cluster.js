@@ -1,12 +1,13 @@
 'use strict';
 let clusterRows=[], clusterLoading=false, clusterBusy=false;
-const clusterLeader=()=>clusterRows.filter(r=>r.status?.role==='leader').sort((a,b)=>b.status.term-a.status.term)[0];
+const clusterLeader=()=>summarizeCluster(clusterRows).leader;
 function clusterText(tag,text,className=''){const e=document.createElement(tag);e.textContent=text;e.className=className;return e;}
 async function refreshCluster(){
  if(clusterLoading)return;clusterLoading=true;
  try{
   clusterRows=await request('cluster/status');
   const leader=clusterLeader(),status=leader?.status;
+  $('cluster-quorum').textContent=summarizeCluster(clusterRows).message;
   if(!$('view-cluster').hidden){$('connection').textContent=status?'Live cluster connected':'Waiting for leader';$('connection').className='connection '+(status?'online':'offline');}
   $('cluster-leader').textContent=status?.id||'No leader';
   $('cluster-term').textContent=status?'Term '+status.term:'Waiting for quorum / election';
@@ -24,7 +25,13 @@ async function refreshCluster(){
    card.append(dl,clusterText('p',p.http_address,'address'));const metrics=document.createElement('a');metrics.href=p.http_address+'/metrics';metrics.target='_blank';metrics.rel='noopener';metrics.textContent='View metrics ↗';metrics.className='address';card.append(metrics);$('cluster-nodes').append(card);
   }
   if(clusterRows.some(r=>r.peer.id===selected))$('cluster-member').value=selected;else if(clusterRows.some(r=>r.peer.id==='node4'))$('cluster-member').value='node4';
- }catch(e){$('cluster-updated').textContent=e.message;clusterRows=[];$('cluster-leader').textContent='Unavailable';}finally{clusterLoading=false;}
+ }catch(e){
+  clusterRows=[];$('cluster-updated').textContent=e.message;$('cluster-leader').textContent='Unavailable';
+  $('cluster-term').textContent='Status unavailable';$('cluster-voters').textContent='—';$('cluster-transition').textContent='Unknown';
+  $('cluster-nodes').replaceChildren();$('cluster-member').replaceChildren();
+  $('cluster-quorum').textContent='Cannot reach the cluster bridge. Previous observations have been cleared. Check that the demo server is running.';
+  if(!$('view-cluster').hidden){$('connection').textContent='Cluster unavailable';$('connection').className='connection offline';}
+ }finally{clusterLoading=false;}
 }
 async function clusterCommand(command){
  if(clusterBusy)return;

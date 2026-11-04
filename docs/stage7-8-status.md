@@ -1,6 +1,6 @@
 # Stages 7 and 8: reliability and integration
 
-Updated 29 October 2026. Implementation, test evidence and final acceptance are
+Updated 4 November 2026. Implementation, test evidence and final acceptance are
 tracked separately. Passing this suite is not a proof of all possible schedules.
 
 ## Stage 7 evidence
@@ -75,3 +75,22 @@ make build vet test race
 Stage 8 close-out still needs reviewed distributed benchmark results, the final
 report/deck, consensus approvals and release acceptance. No report submission,
 review approval, production readiness or completed Stage 9 is implied.
+
+## Follow-up acceptance and evaluation
+
+The Phase 7–8 baseline at `3aae4f3` passed GitHub CI run 40924327693,
+including the real durable Docker acceptance test. Phase 6 is merged in PR 208.
+This follow-up adds a process majority-loss test (no successful consensus read
+without quorum, recovery verified by a successful read), and a promotion test
+combining an unavailable voter, dropped/duplicated replication, leader failure
+and restart. These extend sampled coverage rather than establish a proof.
+
+The dashboard rejects older-term leader reports when a newer term is observed,
+handles conflicting leader reports, clears stale state after bridge failure,
+and distinguishes console reachability from consensus readiness. Five focused
+JavaScript tests exercise these rules and now run in CI.
+
+See [distributed process evaluation](evaluation/README.md) for the repeatable
+3/5-node workload and raw measurements, and [release acceptance](release-checklist.md)
+for the remaining review, evaluation and delivery gates. A new CI smoke step
+uploads raw evaluation JSON; machine-dependent performance is not a pass/fail gate.
