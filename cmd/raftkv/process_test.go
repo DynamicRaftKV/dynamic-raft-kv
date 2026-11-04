@@ -33,14 +33,18 @@ func TestDurableNodeProcess(t *testing.T) {
 }
 
 func TestDurableClusterLeaderKillAndFullRestart(t *testing.T) {
-	runDurableCluster(t, false)
+	runDurableCluster(t, false, false)
 }
 
 func TestDynamicMembershipProcessJoinPromoteAndRestart(t *testing.T) {
-	runDurableCluster(t, true)
+	runDurableCluster(t, true, false)
 }
 
-func runDurableCluster(t *testing.T, dynamic bool) {
+func TestDurableClusterMajorityLossAndRecovery(t *testing.T) {
+	runDurableCluster(t, false, true)
+}
+
+func runDurableCluster(t *testing.T, dynamic, majorityLoss bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	root := t.TempDir()
@@ -170,6 +174,58 @@ func runDurableCluster(t *testing.T, dynamic bool) {
 	}
 	first := leader()
 	put(first, "before-kill", "retained")
+	if majorityLoss {
+		for i := range commands {
+			if i != first {
+				stop(i)
+			}
+		}
+		// The old leader can still report its role and liveness, but must not
+		// acknowledge even a GET without quorum. Cancellation is an unknown
+		// outcome, so this checks response safety rather than log absence.
+		readCtx, stopRead := context.WithTimeout(ctx, time.Second)
+		req, _ := http.NewRequestWithContext(readCtx, http.MethodGet, peers[first].HTTPAddress+"/kv/before-kill", nil)
+		resp, readErr := client.Do(req)
+		stopRead()
+		if resp != nil {
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				t.Fatal("read acknowledged after majority loss")
+			}
+		}
+		if readErr == nil && resp == nil {
+			t.Fatal("missing read response")
+		}
+		for i := range commands {
+			if i != first {
+				start(i)
+			}
+		}
+		// Restarting peers can first expose an old leader report before the
+		// higher-term election settles. Wait for a successful consensus read,
+		// not merely a role observation, before declaring recovery.
+		for {
+			first = leader()
+			response, err := client.Get(peers[first].HTTPAddress + "/kv/before-kill")
+			if err == nil {
+				var result state.Result
+				decodeErr := json.NewDecoder(response.Body).Decode(&result)
+				response.Body.Close()
+				if response.StatusCode == http.StatusOK {
+					if decodeErr != nil || !result.Found || result.Value != "retained" {
+						t.Fatal("acknowledged data changed after quorum recovery", result, decodeErr)
+					}
+					break
+				}
+			}
+			select {
+			case <-ctx.Done():
+				t.Fatal("no consensus read after quorum recovery")
+			case <-time.After(30 * time.Millisecond):
+			}
+		}
+		put(first, "after-quorum-return", "healthy")
+	}
 	if dynamic {
 		start(3)
 		post := func(path string, body any, allowConflict bool) bool {

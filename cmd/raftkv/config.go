@@ -11,6 +11,7 @@ type config struct {
 	clusterConfig                          string
 	demo                                   bool
 	joining                                bool
+	demoClusterConfig                      string
 	snapshotEntries                        uint64
 }
 
@@ -25,6 +26,7 @@ func parseConfig(args []string) (config, error) {
 	var c config
 	f := flag.NewFlagSet("raftkv", flag.ContinueOnError)
 	f.BoolVar(&c.demo, "demo", false, "enable standalone KV presentation UI at /demo/ (no Raft)")
+	f.StringVar(&c.demoClusterConfig, "demo-cluster-config", "", "allowlisted cluster endpoints for the local demo console")
 	f.BoolVar(&c.joining, "join", false, "join as a learner using a seed configuration that excludes this node")
 	f.Uint64Var(&c.snapshotEntries, "snapshot-entries", 1000, "checkpoint after this many applied entries (0 disables periodic snapshots; membership checkpoints remain)")
 	f.StringVar(&c.clusterConfig, "cluster-config", env("RAFTKV_CLUSTER_CONFIG", ""), "JSON peer configuration; enables durable Raft mode")
@@ -47,6 +49,9 @@ func parseConfig(args []string) (config, error) {
 	}
 	if c.joining && c.clusterConfig == "" {
 		return c, errors.New("--join requires --cluster-config")
+	}
+	if c.demoClusterConfig != "" && !c.demo {
+		return c, errors.New("--demo-cluster-config requires --demo")
 	}
 	return c, nil
 }

@@ -40,7 +40,9 @@ func (n *Node) startCampaignLocked() RequestVoteRequest {
 		return RequestVoteRequest{}
 	}
 	n.role = Candidate
+	n.elections++
 	n.leader = ""
+	n.eventLocked("election_started")
 	n.resetElectionLocked()
 	n.incoming = nil
 	last := n.entryLocked(n.lastLocked())
@@ -89,6 +91,8 @@ func (n *Node) sendVotes(ctx context.Context, req RequestVoteRequest) {
 func (n *Node) leadLocked() {
 	n.role = Leader
 	n.leader = n.c.ID
+	n.leaderships++
+	n.eventLocked("leader_elected")
 	n.heartbeat = 0
 	last := n.lastLocked()
 	for id := range n.peers {

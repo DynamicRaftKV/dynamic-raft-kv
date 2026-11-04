@@ -1,3 +1,3 @@
-// Package observability reserves the boundary for later metrics and logging.
-// No observability backend or business behavior is implemented in Stage 1.
+// Package observability exposes local diagnostic gauges and process counters.
+// Observations and liveness are not a claim that a quorum is reachable.
 package observability

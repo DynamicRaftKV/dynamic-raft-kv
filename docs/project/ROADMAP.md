@@ -1,34 +1,20 @@
 # RaftKV — Roadmap
 
-## Implementation update — 29 October 2026
+## Implementation update 4 November 2026
 
-Stage 6.1–6.4 now has local implementation and tests for durable membership,
-learner admission/catch-up, joint-consensus promotion/removal and process restart.
-See [Stage 6 runbook](../stage6-status.md). Consensus review and remote CI remain
-separate acceptance gates; Stage 7, Compose and cluster UI work remain.
+Stages 3–5 and dynamic membership in Stage 6 are merged. Stage 7 and the
+Stage 8 live console/Compose baseline passed CI at `3aae4f3`, including durable
+3→5-node container acceptance. The current follow-up extends combined-fault
+checks, dashboard status safety and reproducible 3/5-process evaluation.
 
-Local work now includes Stage 3.1–3.4, Stage 4's network/API/CLI code, and
-Stage 5.1–5.3 WAL, durable startup, snapshot transfer/recovery and compaction.
-Tests include >4 MiB gRPC snapshot catch-up, checkpoint crash boundaries,
-process leader failure and full-cluster restart. Reviews and publication are
-separate; this update does not mark the whole project complete.
+Remaining work is review and current-head CI, repeated evaluation, final demo
+acceptance, presentation/report acceptance, governance and release close-out.
+Stage 9 remains optional. The original schedule and hour estimates below are a
+planning baseline, not a measured remaining-work estimate.
 
-Stage 5.4's defined disk-full/I/O and protocol recovery matrix is now tested;
-see [recovery validation and merge gate](../stage5-recovery-validation.md).
-
-Remaining critical path: **Stage 3–5 review/CI and integration →
-6.1–6.4 dynamic membership → 7 reliability/observability → 4.4 Compose acceptance
-and 8 cluster UI/evaluation**. Stage 9 is optional post-MVP work.
-
-See [current completion checklist](../completion-plan.md),
-[etcd comparison and review additions](../raft-readiness-review.md), and
-[durable node run instructions](../stage5-status.md).
-
-Add explicit acceptance checks for atomic snapshot publication, recoverable
-membership transitions, learner promotion/removal, operation histories under
-faults, resource limits under quorum loss, and host/container address routing.
-These clarify existing phases; the review's optional extensions are not silently
-added to the MVP. The schedule below remains the original planning baseline.
+See [completion checklist](../completion-plan.md),
+[Stage 7–8 evidence](../stage7-8-status.md),
+[evaluation](../evaluation/README.md) and [release gates](../release-checklist.md).
 
 > Planned schedule. **Live status lives on the GitHub Project board** (see README). This file is the static mirror of the plan so it can be read offline and cited in the report.
 

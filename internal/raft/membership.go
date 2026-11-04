@@ -155,12 +155,18 @@ func (n *Node) ChangeMembership(ctx context.Context, operation, id string, peer 
 		return err
 	}
 	index := n.lastLocked() + 1
+	if err := n.admitLocked(len(data)); err != nil {
+		n.mu.Unlock()
+		return err
+	}
 	if err := n.appendLocked([]storage.Entry{{Index: index, Term: n.hard.Term, Kind: storage.EntryConfiguration, Data: data}}); err != nil {
 		n.mu.Unlock()
 		return err
 	}
 	ch := make(chan proposalResult, 1)
 	n.pending[index] = ch
+	n.accepted++
+	n.eventLocked("membership_proposed", "operation", operation, "member", id)
 	n.match[n.c.ID] = index
 	n.advanceLocked()
 	n.mu.Unlock()
@@ -176,6 +182,9 @@ func (n *Node) ChangeMembership(ctx context.Context, operation, id string, peer 
 	case r := <-ch:
 		return r.err
 	case <-ctx.Done():
+		n.mu.Lock()
+		n.timedOut++
+		n.mu.Unlock()
 		return ctx.Err()
 	}
 }

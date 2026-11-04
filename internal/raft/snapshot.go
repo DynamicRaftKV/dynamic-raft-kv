@@ -74,6 +74,7 @@ func (n *Node) takeSnapshotLocked() error {
 		return n.haltLocked(err)
 	}
 	n.publishSnapshotLocked(s, true)
+	n.eventLocked("snapshot_created", "snapshot_index", s.LastIncludedIndex)
 	if err = n.c.Storage.Compact(s.LastIncludedIndex); err != nil {
 		return n.haltLocked(err)
 	}
@@ -176,6 +177,7 @@ func (n *Node) InstallSnapshot(ctx context.Context, r InstallSnapshotRequest) (I
 	}
 	n.publishSnapshotLocked(s, retain)
 	n.commit, n.applied = s.LastIncludedIndex, s.LastIncludedIndex
+	n.eventLocked("snapshot_installed", "snapshot_index", s.LastIncludedIndex)
 	if err := n.c.Storage.Compact(s.LastIncludedIndex); err != nil {
 		return resp(false, 0, n.haltLocked(err))
 	}
