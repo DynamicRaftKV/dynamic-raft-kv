@@ -15,8 +15,9 @@ function showView(name) {
  document.querySelectorAll('.nav-item').forEach(el => { el.classList.toggle('active', el.dataset.view === name); if (el.dataset.view === name) el.setAttribute('aria-current','page'); else el.removeAttribute('aria-current'); });
  $('page-title').textContent = views[name][0]; $('breadcrumb').textContent = views[name][0]; $('page-description').textContent = views[name][1];
  historyReplace(name);
- document.querySelector('.notice').hidden = name === 'cluster';
- document.querySelector('.page-heading .pill').textContent = name === 'cluster' ? 'Durable cluster' : 'Standalone mode';
+ const standalone = name === 'workspace' || name === 'snapshots';
+ document.querySelector('.notice').hidden = !standalone;
+ document.querySelector('.page-heading .pill').textContent = name === 'cluster' ? 'Durable cluster' : standalone ? 'Standalone mode' : 'Project overview';
 }
 function historyReplace(name) { window.history.replaceState(null, '', '#' + name); }
 document.querySelectorAll('[data-view]').forEach(el => el.addEventListener('click', () => showView(el.dataset.view)));
