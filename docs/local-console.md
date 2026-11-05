@@ -25,10 +25,34 @@ recovered on restart. Stop the script with Ctrl-C; it stops the processes it own
 
 Live snapshots and WAL recovery happen in the backend. The console does not add
 a bulk listing endpoint, metrics that are not implemented, arbitrary snapshot
-restoration, or simulated process failure. Node failures/elections become visible
+restoration, or simulated process failure. The optional manager kills and restarts real, console-created processes. Node failures/elections become visible
 when an actual node process stops. PID files identify the locally launched nodes;
 restart a node with the same flags/data directory, retaining `--join` for node4.
 
 The bridge only routes to configured nodes, refuses redirected requests and
 blocks browser cross-site mutations. Keep this development console bound to
 127.0.0.1. It is not an authenticated remote administration service.
+
+## Automatic node creation and visible tests
+
+The launcher now enables the local process manager with `--demo-node-seed
+configs/local-three-node.json --demo-node-dir data/demo-managed`. This requires
+the console HTTP listener to bind to 127.0.0.1. Each Create node assigns a random
+unique identity and two available loopback ports, persists the registry, and
+starts a joining process with its own durable directory. Membership is changed
+separately through the existing Raft APIs. Repeat to grow beyond the original
+four cards; practical capacity is limited by this machine, ports and resources.
+
+See [the step-by-step demonstration](frontend-demonstration.md).
+
+Only console-created children have process controls. Existing processes are not
+adopted or killed. A normal console shutdown stops its children; enabled children
+restart with their saved identities, ports and data when the console reopens.
+An explicitly crashed child stays stopped until Restart process is selected.
+Do not remove the registry or data to restart a member. A removed member ID must
+never be reused. If the console itself is forcibly killed, children may remain
+alive: stop those known processes before reopening the manager. Occupied saved
+ports produce an error; they are never silently changed.
+
+The manager is a local development convenience, not a distributed orchestrator.
+Docker Compose remains a separate deployment/acceptance path.

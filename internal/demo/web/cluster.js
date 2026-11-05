@@ -22,7 +22,7 @@ async function refreshCluster(){
    const heading=clusterText('h3',p.id);heading.append(clusterText('span',!s?'Offline':!member&&status?'Not a member':member?.learner?'Learner':s.role,'role'));card.append(heading);
    const dl=document.createElement('dl');for(const [k,v] of [['Term',s?.term??'—'],['Commit index',s?.commit_index??'—'],['Applied index',s?.last_applied??'—'],['Catch-up',s&&status?Math.max(0,status.commit_index-s.last_applied)+' behind':'—']]){dl.append(clusterText('dt',k),clusterText('dd',String(v)));}
    if(row.diagnostics){const d=row.diagnostics;for(const [k,v] of [['Pending requests',d.pending],['Uncommitted entries',d.UncommittedEntries],['Snapshot index',d.SnapshotIndex]])dl.append(clusterText('dt',k),clusterText('dd',String(v)));}
-   card.append(dl,clusterText('p',p.http_address,'address'));const metrics=document.createElement('a');metrics.href=p.http_address+'/metrics';metrics.target='_blank';metrics.rel='noopener';metrics.textContent='View metrics ↗';metrics.className='address';card.append(metrics);$('cluster-nodes').append(card);
+   card.append(dl,clusterText('p',p.http_address,'address'),clusterText('p','gRPC '+p.grpc_address,'address')); if(row.managed){const controls=clusterText('div','','demo-test-actions');for(const action of ['crash','restart']){const b=clusterText('button',action==='crash'?'Crash process':'Restart process','button secondary');b.onclick=()=>processAction(p.id,action);controls.append(b)}card.append(controls)}const metrics=document.createElement('a');metrics.href=p.http_address+'/metrics';metrics.target='_blank';metrics.rel='noopener';metrics.textContent='View metrics ↗';metrics.className='address';card.append(metrics);$('cluster-nodes').append(card);
   }
   if(clusterRows.some(r=>r.peer.id===selected))$('cluster-member').value=selected;else if(clusterRows.some(r=>r.peer.id==='node4'))$('cluster-member').value='node4';
  }catch(e){
@@ -34,7 +34,7 @@ async function refreshCluster(){
  }finally{clusterLoading=false;}
 }
 async function clusterCommand(command){
- if(clusterBusy)return;
+ if(clusterBusy||(typeof demonstrationBusy!=='undefined'&&demonstrationBusy))return;
  const leader=clusterLeader();if(!leader){toast('No reachable leader. Refresh status and wait for election.',true);return;}
  clusterBusy=true;document.querySelectorAll('#view-cluster form button').forEach(b=>b.disabled=true);
  $('cluster-result-label').textContent='Waiting for quorum';

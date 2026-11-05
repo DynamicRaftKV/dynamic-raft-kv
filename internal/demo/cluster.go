@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DynamicRaftKV/dynamic-raft-kv/internal/raft"
@@ -16,30 +17,58 @@ import (
 
 // NewClusterHandler keeps the sandbox separate and bridges only explicitly
 // configured nodes. It never follows redirects to arbitrary hosts.
-func NewClusterHandler(sm state.StateMachine, peers []raft.Peer) http.Handler {
-	targets := map[string]raft.Peer{}
-	for _, p := range peers {
-		targets[p.ID] = p
+func NewClusterHandler(sm state.StateMachine, peers []raft.Peer, managers ...*LocalNodes) http.Handler {
+	var manager *LocalNodes
+	if len(managers) > 0 {
+		manager = managers[0]
+	}
+	allPeers := func() []raft.Peer {
+		out := append([]raft.Peer(nil), peers...)
+		if manager != nil {
+			out = append(out, manager.Peers()...)
+		}
+		return out
+	}
+	lookup := func(id string) (raft.Peer, bool) {
+		for _, p := range allPeers() {
+			if p.ID == id {
+				return p, true
+			}
+		}
+		return raft.Peer{}, false
 	}
 	client := &http.Client{Timeout: 6 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	statusClient := &http.Client{Timeout: 700 * time.Millisecond, CheckRedirect: client.CheckRedirect}
 	mux := http.NewServeMux()
 	mux.Handle("/", NewHandler(sm))
+	if manager != nil {
+		manager.routes(mux)
+	}
+	mux.HandleFunc("GET /demo/api/cluster/capabilities", func(w http.ResponseWriter, r *http.Request) {
+		data, _ := json.Marshal(map[string]bool{"local_processes": manager != nil})
+		reply(w, 200, data)
+	})
 	mux.HandleFunc("GET /demo/api/cluster/status", func(w http.ResponseWriter, r *http.Request) {
 		type row struct {
 			Peer        raft.Peer         `json:"peer"`
 			Status      *raft.NodeStatus  `json:"status,omitempty"`
 			Error       string            `json:"error,omitempty"`
 			Diagnostics *raft.Diagnostics `json:"diagnostics,omitempty"`
+			Managed     bool              `json:"managed"`
 		}
-		rows := make([]row, 0, len(peers))
-		for _, p := range peers {
-			item := row{Peer: p}
+		peers := allPeers()
+		managed := map[string]bool{}
+		if manager != nil {
+			for _, p := range manager.Peers() {
+				managed[p.ID] = true
+			}
+		}
+		probe := func(p raft.Peer) row {
+			item := row{Peer: p, Managed: managed[p.ID]}
 			req, _ := http.NewRequestWithContext(r.Context(), "GET", strings.TrimRight(p.HTTPAddress, "/")+"/cluster/status", nil)
 			if req == nil {
 				item.Error = "Invalid configured address"
-				rows = append(rows, item)
-				continue
+				return item
 			}
 			resp, err := statusClient.Do(req)
 			if err != nil {
@@ -65,8 +94,16 @@ func NewClusterHandler(sm state.StateMachine, peers []raft.Peer) http.Handler {
 					}
 				}
 			}
-			rows = append(rows, item)
+			return item
 		}
+		rows := make([]row, len(peers))
+		var wg sync.WaitGroup
+		slots := make(chan struct{}, 8)
+		for i, p := range peers {
+			wg.Add(1)
+			go func() { defer wg.Done(); slots <- struct{}{}; defer func() { <-slots }(); rows[i] = probe(p) }()
+		}
+		wg.Wait()
 		data, _ := json.Marshal(rows)
 		reply(w, 200, data)
 	})
@@ -88,7 +125,7 @@ func NewClusterHandler(sm state.StateMachine, peers []raft.Peer) http.Handler {
 			fail(w, 400, fmt.Errorf("expected one command"))
 			return
 		}
-		p, ok := targets[command.Node]
+		p, ok := lookup(command.Node)
 		if !ok {
 			fail(w, 400, fmt.Errorf("unknown configured node"))
 			return
@@ -106,7 +143,7 @@ func NewClusterHandler(sm state.StateMachine, peers []raft.Peer) http.Handler {
 				payload = map[string]string{"value": command.Value}
 			}
 		case "join", "promote", "remove":
-			member, ok := targets[command.Member]
+			member, ok := lookup(command.Member)
 			if !ok {
 				fail(w, 400, fmt.Errorf("unknown configured member"))
 				return

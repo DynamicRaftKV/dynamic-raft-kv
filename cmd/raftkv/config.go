@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"flag"
+	"net"
 	"os"
 )
 
@@ -12,6 +13,7 @@ type config struct {
 	demo                                   bool
 	joining                                bool
 	demoClusterConfig                      string
+	demoNodeSeed, demoNodeDir              string
 	snapshotEntries                        uint64
 }
 
@@ -27,6 +29,8 @@ func parseConfig(args []string) (config, error) {
 	f := flag.NewFlagSet("raftkv", flag.ContinueOnError)
 	f.BoolVar(&c.demo, "demo", false, "enable standalone KV presentation UI at /demo/ (no Raft)")
 	f.StringVar(&c.demoClusterConfig, "demo-cluster-config", "", "allowlisted cluster endpoints for the local demo console")
+	f.StringVar(&c.demoNodeSeed, "demo-node-seed", "", "opt in to local process controls using this immutable seed file")
+	f.StringVar(&c.demoNodeDir, "demo-node-dir", "data/demo-managed", "durable directory for console-created nodes")
 	f.BoolVar(&c.joining, "join", false, "join as a learner using a seed configuration that excludes this node")
 	f.Uint64Var(&c.snapshotEntries, "snapshot-entries", 1000, "checkpoint after this many applied entries (0 disables periodic snapshots; membership checkpoints remain)")
 	f.StringVar(&c.clusterConfig, "cluster-config", env("RAFTKV_CLUSTER_CONFIG", ""), "JSON peer configuration; enables durable Raft mode")
@@ -52,6 +56,12 @@ func parseConfig(args []string) (config, error) {
 	}
 	if c.demoClusterConfig != "" && !c.demo {
 		return c, errors.New("--demo-cluster-config requires --demo")
+	}
+	if c.demoNodeSeed != "" {
+		host, _, err := net.SplitHostPort(c.httpAddr)
+		if !c.demo || c.demoClusterConfig == "" || err != nil || host != "127.0.0.1" || c.demoNodeDir == "" {
+			return c, errors.New("local process controls require --demo, --demo-cluster-config and HTTP bound to 127.0.0.1")
+		}
 	}
 	return c, nil
 }

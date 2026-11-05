@@ -15,7 +15,8 @@ for i in 1 2 3 4; do
   echo "$!" >"data/demo-cluster/node$i.pid"
 done
 ./bin/raftkv --demo --demo-cluster-config configs/local-demo-nodes.json \
-  --http-addr 127.0.0.1:8080 --grpc-addr 127.0.0.1:9080 &
+  --http-addr 127.0.0.1:8080 --grpc-addr 127.0.0.1:9080 \
+  --demo-node-seed configs/local-three-node.json --demo-node-dir data/demo-managed &
 pids+=("$!")
 echo "Local console: http://127.0.0.1:8080/demo/#cluster"
 echo "Node logs and PID files: data/demo-cluster/"
