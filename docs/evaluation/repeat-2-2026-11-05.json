@@ -1,0 +1,52 @@
+{
+  "timestamp_utc": "2026-11-05T08:36:08.504298+00:00",
+  "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+  "python": "3.14.6",
+  "scope": "Local independent processes sharing one host and disk; no retries in workload; not an SLA",
+  "results": [
+    {
+      "nodes": 3,
+      "pairs": 100,
+      "concurrency": 4,
+      "payload_bytes": 128,
+      "snapshot_entries": 64,
+      "completed_requests": 200,
+      "errors": 0,
+      "requests_per_second": 137.21,
+      "put": {
+        "p50_ms": 27.843,
+        "p95_ms": 49.161,
+        "p99_ms": 70.485
+      },
+      "get": {
+        "p50_ms": 26.192,
+        "p95_ms": 69.511,
+        "p99_ms": 107.066
+      },
+      "leader_kill_to_verified_read_ms": 1441.558,
+      "restarted_node_catchup_ms": 1084.561
+    },
+    {
+      "nodes": 5,
+      "pairs": 100,
+      "concurrency": 4,
+      "payload_bytes": 128,
+      "snapshot_entries": 64,
+      "completed_requests": 200,
+      "errors": 0,
+      "requests_per_second": 97.27,
+      "put": {
+        "p50_ms": 36.077,
+        "p95_ms": 103.918,
+        "p99_ms": 120.036
+      },
+      "get": {
+        "p50_ms": 35.635,
+        "p95_ms": 104.007,
+        "p99_ms": 127.126
+      },
+      "leader_kill_to_verified_read_ms": 1038.405,
+      "restarted_node_catchup_ms": 2795.757
+    }
+  ]
+}

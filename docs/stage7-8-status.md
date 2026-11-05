@@ -94,3 +94,12 @@ See [distributed process evaluation](evaluation/README.md) for the repeatable
 3/5-node workload and raw measurements, and [release acceptance](release-checklist.md)
 for the remaining review, evaluation and delivery gates. A new CI smoke step
 uploads raw evaluation JSON; machine-dependent performance is not a pass/fail gate.
+
+## Integration follow-up on 5 November 2026
+
+PR 209 merged at `0fabd35` into `codex/stage6-dynamic-membership`, not main.
+The follow-up branch integrates that history with main at `8286872`; it does
+not silently treat the feature-branch merge as release acceptance. Three repeated
+3/5-process evaluations and their ranges are now recorded and shown in the UI.
+All 1,200 measured requests succeeded; each run verified recovery and catch-up.
+See the evaluation README for shared-host/background-load limitations.

@@ -15,10 +15,10 @@ Do not infer approval from implementation or from this checklist.
 
 - [ ] Current PR head passes build, vet, tests, race, UI status checks and Docker CI.
 - [ ] Two Raft reviewers approve; findings and SDD/interface reconciliation resolved.
-- [ ] Integrate PR 209 against current main after reviewing its final diff.
+- [ ] Integrate the Phase 7–8 follow-up against main; PR 209 merged only into the Phase 6 branch.
 - [ ] Confirm branch protections and ownership requirements.
 - [ ] Fresh-checkout demo succeeds with documented host ports and persistent volumes.
-- [ ] Review repeated distributed measurements and their limitations.
+- [ ] Review the three repeated 3/5-process measurements and their shared-host limitations.
 - [ ] Final report and presentation accepted or submitted as required.
 - [ ] Record release tag, known limits and retrospective.
 

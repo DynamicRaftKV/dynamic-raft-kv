@@ -35,3 +35,23 @@ and uploads the raw result without enforcing machine-dependent speed thresholds.
 - Exercise the demo from a fresh checkout and record the accepted release commit.
 - Finish the presentation and final evaluation submission; a passing benchmark
   does not satisfy review or submission requirements.
+
+## Repeated measurements on 5 November 2026
+
+Three repetitions per size completed 1,200 requests without workload errors.
+Every repetition checked retained data after leader kill and restarted-node
+catch-up. Raw files are `repeat-1/2/3-2026-11-05.json` in this directory.
+The source baseline is `563ea61` (included unchanged in the integration branch).
+Existing local demo processes and build/test activity shared this host during
+these runs. This is observed development-environment variability, not an idle
+host experiment or a statistically significant ranking of cluster sizes.
+
+| Nodes | Requests/s range | PUT p95 ms range | GET p95 ms range | Recovery seconds range |
+|---|---|---|---|---|
+| 3 | 124.75–137.21 | 49.16–69.27 | 55.30–70.22 | 1.19–1.72 |
+| 5 | 97.27–113.65 | 53.39–103.92 | 93.06–105.84 | 0.96–1.04 |
+
+Repeat with the documented command three times and distinct output paths.
+The earlier 4 November single-sample result is retained for provenance, not
+combined with these runs. Percentile ranges are ranges of per-run percentiles,
+not pooled percentiles. Operator review and final evaluation acceptance remain.
