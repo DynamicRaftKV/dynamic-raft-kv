@@ -166,7 +166,10 @@ func (m *LocalNodes) startLocked(p raft.Peer) error {
 	m.children[p.ID] = c
 	go func() { _ = cmd.Wait(); close(c.done) }()
 	client := http.Client{Timeout: 200 * time.Millisecond}
-	deadline := time.Now().Add(3 * time.Second)
+	// Cold process startup can contend with compilation and other local nodes.
+	// Keep this below the console request timeout while allowing that contention.
+	deadline := time.Now().Add(8 * time.Second)
+	var readinessErr error
 	for time.Now().Before(deadline) {
 		select {
 		case <-c.done:
@@ -182,11 +185,12 @@ func (m *LocalNodes) startLocked(p raft.Peer) error {
 				return nil
 			}
 		}
+		readinessErr = e
 		time.Sleep(30 * time.Millisecond)
 	}
 	_ = cmd.Process.Kill()
 	<-c.done
-	return fmt.Errorf("node startup timed out; inspect its log and restart")
+	return fmt.Errorf("node startup timed out (last readiness error: %v); inspect %s.log and restart", readinessErr, p.ID)
 }
 func (m *LocalNodes) Create() (raft.Peer, error) {
 	m.mu.Lock()
