@@ -94,7 +94,19 @@ func serve(ctx context.Context, c config) error {
 			if err != nil {
 				return err
 			}
-			demoHandler = demo.NewClusterHandler(state.NewStore(), peers)
+			var manager *demo.LocalNodes
+			if c.demoNodeSeed != "" {
+				exe, e := os.Executable()
+				if e != nil {
+					return e
+				}
+				manager, err = demo.OpenLocalNodes(exe, c.demoNodeSeed, c.demoNodeDir)
+				if err != nil {
+					return err
+				}
+				defer manager.Close()
+			}
+			demoHandler = demo.NewClusterHandler(state.NewStore(), peers, manager)
 		}
 		mux.Handle("/demo/", demoHandler)
 		mux.Handle("/", handler)

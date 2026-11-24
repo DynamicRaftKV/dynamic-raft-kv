@@ -97,6 +97,28 @@ func TestTCPCluster(t *testing.T) {
 			if !nodes[0].IsLeader() {
 				t.Fatal("no leader over TCP")
 			}
+			// Real runtimes continue ticking while a client proposal waits. Without
+			// this, a transient RPC timeout strands the test until its deadline.
+			heartbeatCtx, stopHeartbeat := context.WithCancel(ctx)
+			heartbeatDone := make(chan struct{})
+			go func() {
+				defer close(heartbeatDone)
+				ticker := time.NewTicker(20 * time.Millisecond)
+				defer ticker.Stop()
+				for {
+					select {
+					case <-heartbeatCtx.Done():
+						return
+					case <-ticker.C:
+						for _, node := range nodes {
+							if node.IsLeader() {
+								_ = node.Tick(heartbeatCtx)
+							}
+						}
+					}
+				}
+			}()
+			defer func() { stopHeartbeat(); <-heartbeatDone }()
 			// Notify every follower of the elected leader before using follower routing.
 			if err := nodes[0].Tick(ctx); err != nil {
 				t.Fatal(err)

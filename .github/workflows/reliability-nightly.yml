@@ -1,0 +1,44 @@
+name: Extended reliability
+on:
+  schedule:
+    - cron: '17 21 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: reliability-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  faults:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [17, 73, 211]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.1'
+          cache: true
+      - name: Record reproduction context
+        run: |
+          mkdir -p reliability-results
+          git rev-parse HEAD > reliability-results/commit.txt
+          go version > reliability-results/toolchain.txt
+          echo 'shuffle=${{ matrix.seed }} count=20 race=true' > reliability-results/options.txt
+      - name: Repeat combined fault scenarios
+        shell: bash
+        run: |
+          set -o pipefail
+          go test -json -race -count=20 -shuffle=${{ matrix.seed }} -timeout=15m \
+            -run 'Test(Membership|ConcurrentHistories|HistoryOracle|SeededPartitions|QuorumLoss|Snapshot)' \
+            ./internal/raft | tee reliability-results/tests.jsonl
+      - name: Preserve failure and reproduction evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reliability-seed-${{ matrix.seed }}
+          path: reliability-results/
+          retention-days: 14

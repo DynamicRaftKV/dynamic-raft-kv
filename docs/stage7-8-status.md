@@ -3,6 +3,13 @@
 Updated 4 November 2026. Implementation, test evidence and final acceptance are
 tracked separately. Passing this suite is not a proof of all possible schedules.
 
+## Stage 7 follow-up — 24 November 2026
+
+The [combined-fault follow-up](stage7-combined-faults.md) adds explicit concurrent
+write/join and restart-before-catch-up scenarios, plus a scheduled extended
+reliability workflow. The workflow must be merged and observed running before
+nightly acceptance can be marked complete.
+
 ## Stage 7 evidence
 
 | Area | Implemented evidence | Limits |
