@@ -65,7 +65,7 @@ func (n *Node) AppendEntries(ctx context.Context, r AppendEntriesRequest) (Appen
 		bound = r.LeaderCommit
 	}
 	if bound > n.commit {
-		n.commit = bound
+		n.recordCommitLocked(bound, "leader_append")
 		if err := n.applyLocked(); err != nil {
 			return resp(false, err)
 		}
@@ -146,7 +146,7 @@ func (n *Node) advanceLocked() {
 			continue
 		}
 		if n.hasQuorumLocked(func(id string) bool { return n.match[id] >= i }) {
-			n.commit = i
+			n.recordCommitLocked(i, "quorum")
 			n.applyLocked()
 			return
 		}

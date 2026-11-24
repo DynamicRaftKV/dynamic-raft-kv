@@ -17,7 +17,7 @@ nightly acceptance can be marked complete.
 | 7.1 Fault injection | Test-only partitions, dropped and duplicated append messages; existing WAL error and interrupted snapshot seams | No production fault-injection endpoint |
 | 7.2 Failure scenarios | Minority isolation, majority leader replacement, follower restart, lagging snapshot catch-up, real process leader kill/full restart | Broader mixed membership/network/disk schedules remain review work |
 | 7.3 Correctness | Twelve seeded concurrent single-key histories checked against an exhaustive register model, including unknown-outcome writes; negative tests for the checker; race detector | Bounded histories (at most 16 operations), not a general-purpose multi-key proof or exhaustive scheduler |
-| 7.4 Observability | JSON election/role/membership/snapshot/stop events, Prometheus text metrics, local diagnostic JSON, liveness endpoint | Counters reset on restart; liveness and role do not prove quorum |
+| 7.4 Observability | JSON election/role/commit/membership/snapshot/stop events, Prometheus text metrics, local diagnostic JSON, liveness endpoint | Counters reset on restart; liveness and role do not prove quorum |
 
 The [etcd Raft reference](https://github.com/etcd-io/raft) emphasizes deterministic
 testing and protection against unbounded proposal growth. This implementation
@@ -110,3 +110,24 @@ not silently treat the feature-branch merge as release acceptance. Three repeate
 3/5-process evaluations and their ranges are now recorded and shown in the UI.
 All 1,200 measured requests succeeded; each run verified recovery and catch-up.
 See the evaluation README for shared-host/background-load limitations.
+
+## Commit progress observability — 25 November 2026
+
+Replication now emits `commit_advanced` once per local commit-index increase.
+Each JSON event contains `node`, `term`, `role`, `leader`, `commit`, `applied`,
+`previous_commit` and `source`. The source is `quorum` on the leader and
+`leader_append` on a follower. A single event can cover multiple entries.
+The event precedes application: it does not claim that the state machine has
+already applied those entries. Snapshot installation retains its separate
+`snapshot_installed` event; recovery is not a new replication commit.
+
+No keys, values or command payloads are logged. Repeated heartbeats and rejected
+or uncommitted proposals produce no commit-progress event. A three-node test
+checks leader/follower event continuity, payload exclusion, isolation without
+false progress, and progress after healing. Logging uses the existing optional
+logger synchronously under the node lock; operators should use a responsive
+output sink. Metrics remain the better choice for sampling busy clusters.
+
+The Stage 8 [architecture decision index](adr/README.md) links the existing
+records and illustrates the durable write, commit, application and response
+sequence. Final review, report/presentation acceptance and release remain open.

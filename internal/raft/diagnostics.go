@@ -40,3 +40,13 @@ func (n *Node) eventLocked(event string, attrs ...any) {
 		n.c.Logger.Info(event, append([]any{"node", n.c.ID, "term", n.hard.Term, "role", n.role, "leader", n.leader, "commit", n.commit, "applied", n.applied}, attrs...)...)
 	}
 }
+
+// recordCommitLocked records replication progress before application. The caller
+// has already established the matched prefix or current-term quorum. Snapshot
+// installation and startup recovery have their own events and are not counted
+// as replicated commit advances. Requires n.mu.
+func (n *Node) recordCommitLocked(index uint64, source string) {
+	previous := n.commit
+	n.commit = index
+	n.eventLocked("commit_advanced", "previous_commit", previous, "source", source)
+}
