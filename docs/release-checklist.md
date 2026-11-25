@@ -15,9 +15,10 @@ Do not infer approval from implementation or from this checklist.
 
 - [ ] Current PR head passes build, vet, tests, race, UI status checks and Docker CI.
 - [ ] Two Raft reviewers approve; findings and SDD/interface reconciliation resolved.
-- [ ] Integrate the Phase 7–8 follow-up against main; PR 209 merged only into the Phase 6 branch.
+- [ ] Integrate the post-PR-211 logging, browser membership and acceptance follow-up against main.
 - [ ] Confirm branch protections and ownership requirements.
-- [ ] Fresh-checkout demo succeeds with documented host ports and persistent volumes.
+- [x] Clean local checkout builds and passes isolated console API acceptance (af27b20; shared dependency cache).
+- [ ] Fresh-checkout browser/Docker demonstration with documented host ports and persistent volumes is accepted.
 - [ ] Review the three repeated 3/5-process measurements and their shared-host limitations.
 - [ ] Final report and presentation accepted or submitted as required.
 - [ ] Record release tag, known limits and retrospective.
@@ -34,3 +35,24 @@ Do not infer approval from implementation or from this checklist.
 6. Show the implementation page and evaluation results, explaining which review
    and delivery gates remain open. Removal is permanent membership retirement,
    not a crash simulation; do not reuse retired IDs.
+
+## Evidence recorded 25 November 2026
+
+- PR 211 merged at `9d5592d`, containing `5f0ce6d`. Later commits `5766a1b`
+  and `c7dcbdc` require a new PR; pushing them did not update the merged PR.
+- [Scheduled extended reliability run](https://github.com/DynamicRaftKV/dynamic-raft-kv/actions/runs/45545674591)
+  completed successfully on `9d5592d`. This satisfies observation of the scheduled
+  workflow, not independent consensus review or proof of arbitrary fault schedules.
+- The disposable console acceptance script now checks page serving, assigned
+  ports, learner admission/promotion, managed identity and port retention after
+  console restart, removal and consensus reads. It runs on isolated temporary
+  data and ports, and is included in CI. Browser rendering remains a separate
+  manual check; Docker acceptance remains its own CI step.
+
+Run from a clean checkout after `make build`:
+
+```sh
+python3 scripts/console-acceptance.py --output /tmp/console-acceptance.json
+```
+
+Clean-checkout evidence: [console acceptance record](evaluation/console-acceptance-2026-11-25.json). Full build, vet, tests and race checks passed on the same checkout.

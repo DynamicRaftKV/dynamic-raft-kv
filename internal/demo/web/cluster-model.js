@@ -3,7 +3,13 @@
 // can communicate with each other or that a read can currently commit.
 function summarizeCluster(rows) {
  const observed=rows.filter(r=>r.status);
- const term=Math.max(0,...observed.map(r=>r.status.term));
+ // A retired process can keep campaigning with increasing terms. Only peers
+ // in an observed leader's configuration can contradict its leadership.
+ // Include outgoing voters during joint consensus.
+ const reportedLeaders=observed.filter(r=>r.status.role==='leader');
+ const relevantIDs=new Set(reportedLeaders.flatMap(r=>[r.peer.id,...r.status.peers.map(p=>p.id),...(r.status.outgoing_voters||[]).map(p=>p.id)]));
+ const relevant=reportedLeaders.length?observed.filter(r=>relevantIDs.has(r.peer.id)):observed;
+ const term=Math.max(0,...relevant.map(r=>r.status.term));
  const leaders=observed.filter(r=>r.status.role==='leader'&&r.status.term===term);
  const leader=leaders.length===1?leaders[0]:null;
  if(!leader)return {leader:null,message:leaders.length>1?'Conflicting leader reports. Wait for a fresh observation.':'No leader confirmed at the newest observed term. Waiting for election.'};
@@ -16,4 +22,9 @@ function summarizeCluster(rows) {
   :available<required?`${available} of ${voters.length} voters reachable from this console; ${required} required. Operations may time out.`
   :`${available} of ${voters.length} voters reachable from this console; ${required} required. Only a successful command confirms quorum progress.`};
 }
-if(typeof module!=='undefined')module.exports={summarizeCluster};
+function readyToPromote(rows,id){
+ const leader=summarizeCluster(rows).leader,s=leader?.status;
+ const member=s?.peers.find(p=>p.id===id),node=rows.find(r=>r.peer.id===id)?.status;
+ return !!(s&&!s.membership_pending&&member?.learner&&node&&node.term===s.term&&node.last_applied>=s.commit_index);
+}
+if(typeof module!=='undefined')module.exports={summarizeCluster,readyToPromote};
