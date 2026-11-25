@@ -17,7 +17,8 @@ Do not infer approval from implementation or from this checklist.
 - [ ] Two Raft reviewers approve; findings and SDD/interface reconciliation resolved.
 - [ ] Integrate the post-PR-211 logging, browser membership and acceptance follow-up against main.
 - [ ] Confirm branch protections and ownership requirements.
-- [ ] Fresh-checkout demo succeeds with documented host ports and persistent volumes.
+- [x] Clean local checkout builds and passes isolated console API acceptance (af27b20; shared dependency cache).
+- [ ] Fresh-checkout browser/Docker demonstration with documented host ports and persistent volumes is accepted.
 - [ ] Review the three repeated 3/5-process measurements and their shared-host limitations.
 - [ ] Final report and presentation accepted or submitted as required.
 - [ ] Record release tag, known limits and retrospective.
@@ -53,3 +54,5 @@ Run from a clean checkout after `make build`:
 ```sh
 python3 scripts/console-acceptance.py --output /tmp/console-acceptance.json
 ```
+
+Clean-checkout evidence: [console acceptance record](evaluation/console-acceptance-2026-11-25.json). Full build, vet, tests and race checks passed on the same checkout.

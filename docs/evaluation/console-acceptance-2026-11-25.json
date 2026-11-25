@@ -1,0 +1,12 @@
+{
+  "timestamp_utc": "2026-11-25T05:35:08.009231+00:00",
+  "scope": "Disposable local processes; console API, not browser or Docker acceptance",
+  "passed": [
+    "console page, process capability and replicated PUT/GET",
+    "automatic ports, learner join, catch-up and stable four-voter membership",
+    "console restart restores managed identity, ports and committed value",
+    "stable removal and retained consensus read"
+  ],
+  "source_commit": "af27b206bd7698732caf65a120bf3274e431fcc3",
+  "build_validation": "make build vet test race passed from an isolated local clone; dependencies supplied by shared Go module cache"
+}
