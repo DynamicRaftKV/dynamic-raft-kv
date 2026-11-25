@@ -24,7 +24,7 @@ async function waitObserved(check,description){
 }
 function setDemoBusy(busy){
  demonstrationBusy=busy;
- document.querySelectorAll('.demo-test-actions button,#create-node,#view-cluster form button').forEach(b=>b.disabled=busy);
+ document.querySelectorAll('.demo-test-actions button,#create-node,#auto-membership,#remove-node,#view-cluster form button').forEach(b=>b.disabled=busy);
  if(!busy){$('create-node').disabled=!processControls;$('test-restart').disabled=!processControls;}
 }
 async function processAction(id,action){
@@ -37,13 +37,26 @@ async function processAction(id,action){
 }
 $('create-node').onclick=async()=>{
  if(demonstrationBusy||clusterBusy)return;
+ const automatic=$('auto-membership').checked;
  setDemoBusy(true);
+ let created;
  try{
+  if(automatic)await freshLeader();
   const peer=await request('cluster/process',{action:'create'});
+  created=peer.id;
   await refreshCluster();$('cluster-member').value=peer.id;$('cluster-action').value='join';
   $('node-manager-status').textContent=`Created ${peer.id} · HTTP ${peer.http_address} · gRPC ${peer.grpc_address}. Selected below: click Apply membership change to join as learner.`;
-  toast('Process started. Join as learner next; it is not a voter yet.');
- }catch(e){$('node-manager-status').textContent=e.message+' Refresh status before retrying: a process may already have been created.';}
+  if(automatic){
+   $('node-manager-status').textContent=`${peer.id}: joining as learner…`;
+   await membershipRequest('join',peer.id);
+   await waitObserved(()=>readyToPromote(clusterRows,peer.id),'Learner catch-up');
+   $('node-manager-status').textContent=`${peer.id}: caught up; promoting…`;
+   await membershipRequest('promote',peer.id);
+   await waitObserved(()=>{const s=clusterLeader()?.status;return s&&!s.membership_pending&&s.peers.some(p=>p.id===peer.id&&!p.learner);},'Stable voter membership');
+   $('node-manager-status').textContent=`${peer.id} is now a voter. HTTP ${peer.http_address} · gRPC ${peer.grpc_address}`;
+   toast('Node added and promoted. Membership is stable.');
+  }else toast('Process started. Join as learner next; it is not a voter yet.');
+ }catch(e){$('node-manager-status').textContent=e.message+(created?' Node '+created+' was created. Inspect Membership and continue manually; do not create a duplicate.':' Refresh status before retrying: a process may already have been created.');}
  finally{await refreshCluster();setDemoBusy(false);}
 };
 async function runDemonstration(kind){
@@ -89,3 +102,34 @@ $('test-crud').onclick=()=>runDemonstration('crud');
 $('test-replication').onclick=()=>runDemonstration('replication');
 $('test-restart').onclick=()=>runDemonstration('restart');
 request('cluster/capabilities').then(c=>{processControls=c.local_processes;$('create-node').disabled=!processControls;$('test-restart').disabled=!processControls;$('node-manager-status').textContent=processControls?'Local process controls enabled. Each new node receives two available loopback ports.':'Process controls are disabled. Start the console with --demo-node-seed configs/local-three-node.json and --demo-node-dir data/demo-managed.';}).catch(e=>{$('node-manager-status').textContent=e.message;});
+
+async function membershipRequest(operation,member){
+ const leader=await freshLeader();
+ return request('cluster/command',{node:leader.peer.id,operation,member});
+}
+let removalCandidate=null;
+$('remove-node').onclick=()=>{
+ if(demonstrationBusy||clusterBusy)return;
+ removalCandidate=$('cluster-member').value;
+ if(!removalCandidate)return;
+ $('remove-node-description').textContent=`Remove ${removalCandidate} permanently from membership? Its ID cannot be reused. Its data and process are retained. This is not a crash test.`;
+ $('remove-node-dialog').returnValue='cancel';
+ $('remove-node-dialog').showModal();
+};
+$('remove-node-dialog').addEventListener('close',()=>{
+ const id=removalCandidate;removalCandidate=null;
+ if($('remove-node-dialog').returnValue==='remove'&&id)removeSelectedMember(id);
+});
+async function removeSelectedMember(id){
+ if(demonstrationBusy||clusterBusy)return;
+ setDemoBusy(true);
+ try{
+  const leader=await freshLeader();
+  if(!leader.status.peers.some(p=>p.id===id))throw new Error('Selected node is not a current member.');
+  await membershipRequest('remove',id);
+  await waitObserved(()=>{const s=clusterLeader()?.status;return s&&!s.membership_pending&&!s.peers.some(p=>p.id===id);},'Stable removal');
+  $('node-manager-status').textContent=`${id} removed from membership. Its ID is retired; its data and process are retained.`;
+  toast('Member removed. Membership is stable.');
+ }catch(e){$('node-manager-status').textContent=e.message+' Refresh and inspect membership before retrying; the outcome may be unknown.';}
+ finally{await refreshCluster();setDemoBusy(false);}
+};

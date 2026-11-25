@@ -44,5 +44,5 @@ async function clusterCommand(command){
 }
 $('cluster-refresh').onclick=refreshCluster;
 $('cluster-kv').onsubmit=e=>{e.preventDefault();clusterCommand({operation:$('cluster-operation').value,key:$('cluster-key').value,value:$('cluster-value').value});};
-$('cluster-membership').onsubmit=e=>{e.preventDefault();const action=$('cluster-action').value,member=$('cluster-member').value;if(action==='remove'&&!confirm('Remove '+member+' from the cluster? Its ID cannot be reused. This is not a crash simulation.'))return;clusterCommand({operation:action,member});};
+$('cluster-membership').onsubmit=e=>{e.preventDefault();const action=$('cluster-action').value,member=$('cluster-member').value;if(action==='remove'){$('remove-node').click();return;}clusterCommand({operation:action,member});};
 refreshCluster();setInterval(()=>{if(!document.hidden&&!$('view-cluster').hidden)refreshCluster();},2000);

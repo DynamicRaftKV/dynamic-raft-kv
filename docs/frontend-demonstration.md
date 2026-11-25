@@ -43,3 +43,33 @@ ownership, distinct ports, persistent registry, and reopen intent tests.
 These are real local processes. This is not unlimited scaling, a remote node
 provisioner, a replacement for Docker Compose, or exhaustive failure testing.
 Timeouts can leave an operation's outcome unknown; inspect status before retrying.
+
+## Optional automatic membership flow (25 November 2026)
+
+In Live cluster, select **Automatically join and promote to voter**, then click
+**Create node**. The console assigns ports and starts a durable process, admits
+it as a learner, waits for a same-term caught-up observation and stable
+membership, then requests promotion. The backend still enforces promotion and
+joint-consensus safety. Success appears only after stable voter membership is
+observed. Leave the checkbox off to perform join and promotion manually.
+
+In Membership, choose a node and click **Remove selected member**, then confirm
+in the page. Wait for the stable-removal message. This retires the ID, preserves
+its files and does not stop its process; process crash/restart remains separate.
+A timeout or leader change stops the automatic sequence without retrying the
+mutation: inspect the node and continue manually. Do not create another node
+just to retry an uncertain join. Refreshing/closing the browser interrupts the
+workflow; any already-created process or committed membership persists.
+
+Stages 7 and 8 are not marked finally complete. Their implementation evidence is
+shown separately from outstanding consensus reviews, scheduled-run evidence,
+fresh-checkout demo acceptance, report/presentation acceptance and release gates.
+
+Verified locally on 25 November: browser automatic creation, learner catch-up
+and promotion grew five voters to six; in-page confirmed removal restored five.
+The guided replication test then passed PUT, GET, all five admitted nodes'
+applied-index progress, retained-value GET, DELETE and missing-key GET.
+A retired process continued campaigning with higher terms; leader detection now
+excludes nonmembers from term comparisons while retaining outgoing joint voters.
+Seven dashboard model tests cover this behavior and promotion gating. This is
+local demonstration evidence, not final release acceptance or proof of all faults.
