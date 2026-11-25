@@ -7,7 +7,7 @@ const views = {
  workspace: ['KV workspace', 'Write a key. Read it back. See your Go engine at work.'],
  snapshots: ['Snapshots', 'Capture your data, make a change, then restore the exact state.'],
  implementation: ['Implementation', 'A clear view of what is built, verified, and still ahead.'],
- architecture: ['Architecture', 'See the live demo path and how it fits the planned system.']
+ architecture: ['Process visualizer', 'Explore how elections, replication, recovery and membership work.']
 };
 function showView(name) {
  if (!views[name]) name = 'workspace';

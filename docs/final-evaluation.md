@@ -57,10 +57,10 @@ bounded tests do not cover every failure ordering. Independent consensus/SDD
 review, final demonstration acceptance, report/deck acceptance and release
 sign-off remain recorded gates in the [release checklist](release-checklist.md).
 
-A future full process visualizer should explain elections, persistence,
-replication, commitment, application and recovery. It must label explanatory
-animation separately from observed events; status polling cannot reveal every
-network exchange. It is deferred while Phase 7/8 acceptance is completed.
+The [process visualizer](process-visualizer.md) explains elections, persistence,
+replication, commitment, application, recovery and membership. Scripted teaching
+scenarios are clearly separate from actual node-status observations; this is
+not a packet trace or a replay of live operations.
 
 ## Suggested presentation order
 

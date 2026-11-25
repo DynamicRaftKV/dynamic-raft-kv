@@ -75,3 +75,5 @@ stays fixed, and recovery preserves acknowledged data and permits new writes.
 A timed-out write remains an unknown outcome, not a guaranteed rejection.
 
 The corrected extended acceptance passed three consecutive local runs; [raw results](evaluation/console-quorum-2026-11-25.json) include the script hash. Recovery waits for a successful consensus read rather than just a leader role. An injected missing-binary failure also verified the failure-report path.
+
+PR 213 merged at `d664169`; main CI passed. The next demonstration addition is the [process visualizer](process-visualizer.md), with scripted protocol lessons and a separate read-only status view. Final human acceptance gates remain open.
