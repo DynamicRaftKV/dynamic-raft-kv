@@ -12,10 +12,10 @@ import subprocess
 import tempfile
 import time
 import urllib.request
+import urllib.error
 
 
-def run(binary):
-    evidence = []
+def run(binary, evidence):
     with tempfile.TemporaryDirectory(prefix="raftkv-console-acceptance-") as tmp:
         root = pathlib.Path(tmp)
         processes, logs, reservations = [], [], []
@@ -84,10 +84,13 @@ def run(binary):
         console_args = ['--demo', '--node-id', peers[0]['id'], '--demo-cluster-config', str(config), '--http-addr', f'127.0.0.1:{http}',
                         '--grpc-addr', f'127.0.0.1:{grpc}', '--demo-node-seed', str(config),
                         '--demo-node-dir', str(root / 'managed')]
+        originals = {}
+        node_args = {}
         try:
             for p in peers:
-                start(['--node-id', p['id'], '--cluster-config', str(config), '--data-dir', str(root / p['id']),
-                       '--http-addr', p['http_address'].removeprefix('http://'), '--grpc-addr', p['grpc_address']], p['id'])
+                node_args[p['id']] = ['--node-id', p['id'], '--cluster-config', str(config), '--data-dir', str(root / p['id']),
+                       '--http-addr', p['http_address'].removeprefix('http://'), '--grpc-addr', p['grpc_address']]
+                originals[p['id']] = start(node_args[p['id']], p['id'])
             console = start(console_args, 'console')
             wait(leader, 'initial election')
             assert call('/demo/api/cluster/capabilities')['local_processes']
@@ -122,13 +125,44 @@ def run(binary):
                  all(p['id'] != peer['id'] for p in s['peers']), 'removal')
             assert command('GET', key='acceptance')['value'] == 'retained'
             evidence.append('stable removal and retained consensus read')
+            active = wait(leader, 'leader before quorum loss')
+            followers = [p['id'] for p in peers if p['id'] != active['id']]
+            for identity in followers:
+                originals[identity].kill()
+                originals[identity].wait(timeout=5)
+            before = wait(leader, 'surviving leader')['commit_index']
+            for operation in ('GET', 'PUT'):
+                payload = dict(node=active['id'], operation=operation, key='minority-write', value='uncertain')
+                try:
+                    call('/demo/api/cluster/command', payload)
+                except urllib.error.HTTPError as e:
+                    if e.code not in (503, 504):
+                        raise
+                else:
+                    raise AssertionError(f'{operation} succeeded without quorum')
+            assert leader()['commit_index'] == before, 'commit advanced without quorum'
+            evidence.append('two follower SIGKILLs: GET and PUT unavailable, commit index unchanged')
+            for identity in followers:
+                originals[identity] = start(node_args[identity], identity)
+            # Role reports may precede recovered quorum. Retry only the
+            # verification read; do not replay an unknown-outcome mutation.
+            wait(lambda: command('GET', key='acceptance')['value'] == 'retained',
+                 'verified consensus read after quorum recovery')
+            # The minority PUT timed out with unknown outcome. Overwrite it only
+            # after recovery, then verify a new acknowledged value.
+            command('PUT', key='minority-write', value='recovered')
+            assert command('GET', key='minority-write')['value'] == 'recovered'
+            evidence.append('quorum recovery retains acknowledged data and accepts a new write/read')
         except Exception:
             for path in root.rglob('*.log'):
                 print(path.name, path.read_text(errors='replace')[-3000:])
             raise
         finally:
             for p in reversed(processes):
-                stop(p)
+                try:
+                    stop(p)
+                except RuntimeError as error:
+                    print(f'Cleanup: {error}')
             for log in logs:
                 log.close()
     return evidence
@@ -141,7 +175,15 @@ if __name__ == '__main__':
     args = parser.parse_args()
     report = {'timestamp_utc': datetime.datetime.now(datetime.timezone.utc).isoformat(),
               'scope': 'Disposable local processes; console API, not browser or Docker acceptance',
-              'passed': run(args.binary.resolve())}
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(report, indent=2) + '\n')
+              'passed': []}
+    try:
+        run(args.binary.resolve(), report['passed'])
+        report['result'] = 'passed'
+    except Exception as error:
+        report['result'] = 'failed'
+        report['error'] = f'{type(error).__name__}: {error}'
+        raise
+    finally:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps(report, indent=2))

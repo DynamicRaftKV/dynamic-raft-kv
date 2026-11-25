@@ -1,0 +1,46 @@
+{
+  "base_commit": "c9e18f1536fc786572edd871783ff12a524726a8",
+  "script_sha256": "3c9a990bb47535d4d1ed55f926e80a670c253a23d4a67a4bd758e27505d2b399",
+  "runs": [
+    {
+      "timestamp_utc": "2026-11-25T05:44:01.815614+00:00",
+      "scope": "Disposable local processes; console API, not browser or Docker acceptance",
+      "passed": [
+        "console page, process capability and replicated PUT/GET",
+        "automatic ports, learner join, catch-up and stable four-voter membership",
+        "console restart restores managed identity, ports and committed value",
+        "stable removal and retained consensus read",
+        "two follower SIGKILLs: GET and PUT unavailable, commit index unchanged",
+        "quorum recovery retains acknowledged data and accepts a new write/read"
+      ],
+      "result": "passed"
+    },
+    {
+      "timestamp_utc": "2026-11-25T05:44:29.601800+00:00",
+      "scope": "Disposable local processes; console API, not browser or Docker acceptance",
+      "passed": [
+        "console page, process capability and replicated PUT/GET",
+        "automatic ports, learner join, catch-up and stable four-voter membership",
+        "console restart restores managed identity, ports and committed value",
+        "stable removal and retained consensus read",
+        "two follower SIGKILLs: GET and PUT unavailable, commit index unchanged",
+        "quorum recovery retains acknowledged data and accepts a new write/read"
+      ],
+      "result": "passed"
+    },
+    {
+      "timestamp_utc": "2026-11-25T05:44:43.917307+00:00",
+      "scope": "Disposable local processes; console API, not browser or Docker acceptance",
+      "passed": [
+        "console page, process capability and replicated PUT/GET",
+        "automatic ports, learner join, catch-up and stable four-voter membership",
+        "console restart restores managed identity, ports and committed value",
+        "stable removal and retained consensus read",
+        "two follower SIGKILLs: GET and PUT unavailable, commit index unchanged",
+        "quorum recovery retains acknowledged data and accepts a new write/read"
+      ],
+      "result": "passed"
+    }
+  ],
+  "failure_artifact_check": "Missing binary exits nonzero and writes result=failed with FileNotFoundError"
+}
