@@ -16,7 +16,7 @@ jobs:
           cache: true
       - run: make build vet test race
       - name: Dashboard status safety checks
-        run: node --test internal/demo/cluster-model.test.cjs
+        run: node --test internal/demo/cluster-model.test.cjs internal/demo/process-model.test.cjs
       - name: Disposable console acceptance
         timeout-minutes: 5
         run: python3 scripts/console-acceptance.py --output console-acceptance.json
