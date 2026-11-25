@@ -15,7 +15,7 @@ Do not infer approval from implementation or from this checklist.
 
 - [ ] Current PR head passes build, vet, tests, race, UI status checks and Docker CI.
 - [ ] Two Raft reviewers approve; findings and SDD/interface reconciliation resolved.
-- [ ] Integrate the post-PR-211 logging, browser membership and acceptance follow-up against main.
+- [x] Integrate the post-PR-211 logging, browser membership and acceptance follow-up: PR 212, main c9e18f1.
 - [ ] Confirm branch protections and ownership requirements.
 - [x] Clean local checkout builds and passes isolated console API acceptance (af27b20; shared dependency cache).
 - [ ] Fresh-checkout browser/Docker demonstration with documented host ports and persistent volumes is accepted.
@@ -56,3 +56,22 @@ python3 scripts/console-acceptance.py --output /tmp/console-acceptance.json
 ```
 
 Clean-checkout evidence: [console acceptance record](evaluation/console-acceptance-2026-11-25.json). Full build, vet, tests and race checks passed on the same checkout.
+
+## Merged candidate verification
+
+The user reported reviewing and merging PR 212 on 25 November. The GitHub API
+confirms the merge at `c9e18f1`; its reviews endpoint returned no formal review
+records at this check. This records the user's review without claiming two
+independent approvals or completed SDD reconciliation.
+
+[Main CI run 45555175828](https://github.com/DynamicRaftKV/dynamic-raft-kv/actions/runs/45555175828)
+passed on `c9e18f1`, including disposable console acceptance and durable Docker
+acceptance. Future commits require their own CI; the open current-head gate is
+not a statement that this merged baseline failed.
+
+The next acceptance extension checks the console during loss of two of three
+voters: GET and PUT return unavailable, the surviving leader's commit index
+stays fixed, and recovery preserves acknowledged data and permits new writes.
+A timed-out write remains an unknown outcome, not a guaranteed rejection.
+
+The corrected extended acceptance passed three consecutive local runs; [raw results](evaluation/console-quorum-2026-11-25.json) include the script hash. Recovery waits for a successful consensus read rather than just a leader role. An injected missing-binary failure also verified the failure-report path.

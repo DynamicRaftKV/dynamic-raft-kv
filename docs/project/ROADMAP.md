@@ -1,16 +1,20 @@
 # RaftKV — Roadmap
 
-## Implementation update 4 November 2026
+## Implementation update 25 November 2026
 
-Stages 3–5 and dynamic membership in Stage 6 are merged. Stage 7 and the
-Stage 8 live console/Compose baseline passed CI at `3aae4f3`, including durable
-3→5-node container acceptance. The current follow-up extends combined-fault
-checks, dashboard status safety and reproducible 3/5-process evaluation.
+Stages 3–6 and the Phase 7/8 follow-up are merged through PR 212 (`c9e18f1`).
+Main CI passed, including durable Docker and isolated console acceptance.
+Scheduled extended reliability also passed on the previous main baseline.
+The browser supports automatic local-node ports, learner admission/promotion,
+confirmed removal and guided checks. Commit-progress logs and repeatable
+3/5-process evaluation are available.
 
-Remaining work is review and current-head CI, repeated evaluation, final demo
-acceptance, presentation/report acceptance, governance and release close-out.
-Stage 9 remains optional. The original schedule and hour estimates below are a
-planning baseline, not a measured remaining-work estimate.
+Remaining gates are independent consensus/SDD review, repository-governance
+verification, final browser/container demonstration acceptance, report/deck
+acceptance and release sign-off. New changes still need current-head CI.
+The original hour estimates below are planning estimates, not measured work left.
+The full process visualizer is requested next, after Phase 7/8 acceptance work;
+Stage 9 otherwise remains optional.
 
 See [completion checklist](../completion-plan.md),
 [Stage 7–8 evidence](../stage7-8-status.md),
