@@ -7,8 +7,8 @@ tracked separately. Passing this suite is not a proof of all possible schedules.
 
 The [combined-fault follow-up](stage7-combined-faults.md) adds explicit concurrent
 write/join and restart-before-catch-up scenarios, plus a scheduled extended
-reliability workflow. The workflow must be merged and observed running before
-nightly acceptance can be marked complete.
+reliability workflow. The workflow was merged in PR 211; scheduled run 45545674591 passed on
+`9d5592d`. Scheduled-run observation is complete; independent review remains.
 
 ## Stage 7 evidence
 
